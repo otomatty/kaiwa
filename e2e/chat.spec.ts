@@ -175,7 +175,7 @@ test("file upload shows an attachment for everyone", async ({ browser }) => {
       { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") },
     ]);
   await expect(A.getByText("pixel.png")).toBeVisible();
-  await expect(A.getByRole("button", { name: "送信" })).toBeEnabled();
+  await expect(A.getByRole("button", { name: "送信", exact: true })).toBeEnabled();
   await composer(A).fill("資料です");
   await composer(A).press("Enter");
   const msg = message(B, "資料です");
