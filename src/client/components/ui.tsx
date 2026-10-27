@@ -387,8 +387,23 @@ export function TextField({
 }
 
 /** Small "notifications paused" marker shown next to a person's name. */
+/** True while `until` is in the future; re-renders the caller when it passes. */
+export function useActiveUntil(until: number | null | undefined): boolean {
+  const [, tick] = useState(0);
+  const active = !!until && until > Date.now();
+  useEffect(() => {
+    if (!until) return;
+    const wait = until - Date.now();
+    if (wait <= 0 || wait > 2 ** 31 - 1) return;
+    const t = setTimeout(() => tick((n) => n + 1), wait + 50);
+    return () => clearTimeout(t);
+  }, [until]);
+  return active;
+}
+
 export function DndIcon({ until, size = 13 }: { until: number | null | undefined; size?: number }) {
-  if (!until || until < Date.now()) return null;
+  const active = useActiveUntil(until);
+  if (!until || !active) return null;
   const time = new Date(until).toLocaleString("ja-JP", {
     month: "numeric",
     day: "numeric",

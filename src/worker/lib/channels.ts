@@ -15,7 +15,7 @@ SELECT c.*, cm.last_read_at, cm.starred, cm.muted, cm.hidden,
        AND (m.thread_root_id IS NULL OR m.broadcast = 1)) AS mention_count,
   (SELECT MAX(m.created_at) FROM messages m
      WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1) AND m.deleted_at IS NULL) AS latest_at,
-  CASE WHEN c.kind IN ('dm', 'group') THEN (SELECT json_object('userId', m.user_id, 'text', substr(m.text, 1, 200), 'files', (SELECT COUNT(*) FROM files f WHERE f.message_id = m.id))
+  CASE WHEN c.kind IN ('dm', 'group') THEN (SELECT json_object('userId', m.user_id, 'text', substr(m.text, 1, 200), 'files', (SELECT COUNT(*) FROM files f WHERE f.message_id = m.id), 'shared', json(CASE WHEN m.shared_from IS NOT NULL OR m.shared_deleted_at IS NOT NULL THEN 'true' ELSE 'false' END))
      FROM messages m WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1) AND m.deleted_at IS NULL
      ORDER BY m.created_at DESC LIMIT 1) END AS latest_preview
 FROM channel_members cm JOIN channels c ON c.id = cm.channel_id

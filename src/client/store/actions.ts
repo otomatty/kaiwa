@@ -275,7 +275,8 @@ export async function loadLatest(cid: string) {
   }
 }
 
-export async function loadAround(cid: string, messageId: string) {
+/** Loads the page around a message. Returns the thread root when the message is a thread reply. */
+export async function loadAround(cid: string, messageId: string): Promise<string | null> {
   setChannelMsgs(cid, { loading: true });
   try {
     const page = await api.messages(cid, { around: messageId, limit: 50 });
@@ -290,6 +291,7 @@ export async function loadAround(cid: string, messageId: string) {
       loaded: true,
       loading: false,
     });
+    return page.threadRootId ?? null;
   } catch (err) {
     setChannelMsgs(cid, { loading: false });
     throw err;
@@ -788,8 +790,8 @@ export async function setChannelPrefs(
   }
 }
 
-export function openThread(rootId: string) {
-  set({ panel: { kind: "thread", rootId } });
+export function openThread(rootId: string, highlight?: string) {
+  set({ panel: { kind: "thread", rootId, highlight } });
 }
 
 export function openProfile(userId: string) {

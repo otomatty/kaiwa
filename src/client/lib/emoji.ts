@@ -66,21 +66,73 @@ export const GROUPS: { id: number; label: string; icon: string }[] = [
   { id: 9, label: "旗", icon: "🏁" },
 ];
 
+/** Widely used emoji, preferred when several match equally well. */
+const COMMON = [
+  "heart",
+  "+1",
+  "joy",
+  "tada",
+  "pray",
+  "eyes",
+  "white_check_mark",
+  "raised_hands",
+  "fire",
+  "smile",
+  "clap",
+  "100",
+  "sparkles",
+  "thinking_face",
+  "sob",
+  "ok_hand",
+  "rocket",
+  "muscle",
+  "wave",
+  "bow",
+  "heart_eyes",
+  "sweat_smile",
+  "laughing",
+  "blush",
+  "star",
+  "rofl",
+  "cry",
+  "grin",
+  "wink",
+  "star2",
+];
+
 export function searchEmoji(query: string, limit = 50): Emoji[] {
   const q = query.toLowerCase().replace(/^:/, "");
   if (!q) return EMOJI.slice(0, limit);
+  const preferred = [...recentEmoji(), ...COMMON];
+  const popularity = (e: Emoji) => {
+    let best = Number.POSITIVE_INFINITY;
+    for (const n of e.names) {
+      const i = preferred.indexOf(n);
+      if (i !== -1 && i < best) best = i;
+    }
+    return best;
+  };
   const exact: Emoji[] = [];
   const starts: Emoji[] = [];
   const contains: Emoji[] = [];
-  const tagged: Emoji[] = [];
+  const tagged: { e: Emoji; word: boolean }[] = [];
   for (const e of EMOJI) {
     if (e.names.includes(q)) exact.push(e);
     else if (e.names.some((n) => n.startsWith(q))) starts.push(e);
     else if (e.names.some((n) => n.includes(q))) contains.push(e);
-    else if (e.tags.includes(q)) tagged.push(e);
-    if (exact.length + starts.length >= limit) break;
+    else if (e.tags.includes(q)) tagged.push({ e, word: e.tags.split(" ").includes(q) });
   }
-  return [...exact, ...starts, ...contains, ...tagged].slice(0, limit);
+  const byPopularity = (a: Emoji, b: Emoji) => popularity(a) - popularity(b) || 0;
+  starts.sort(byPopularity);
+  contains.sort(byPopularity);
+  // Keyword matches (e.g. Japanese 「ハート」): whole-word first, then popular, then the most specific.
+  tagged.sort(
+    (a, b) =>
+      Number(b.word) - Number(a.word) ||
+      popularity(a.e) - popularity(b.e) ||
+      a.e.tags.length - b.e.tags.length,
+  );
+  return [...exact, ...starts, ...contains, ...tagged.map((t) => t.e)].slice(0, limit);
 }
 
 const RECENT_KEY = "kaiwa:recent-emoji";

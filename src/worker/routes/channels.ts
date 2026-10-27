@@ -499,6 +499,7 @@ channelRoutes.get("/:cid/messages", async (c) => {
   let rows: MessageRow[] = [];
   let hasMoreBefore = false;
   let hasMoreAfter = false;
+  let threadRootId: string | null = null;
 
   const older = async (anchor: string | null, inclusive: boolean, n: number) => {
     const cond = anchor
@@ -531,6 +532,7 @@ channelRoutes.get("/:cid/messages", async (c) => {
       .first<{ thread_root_id: string | null }>();
     if (!target) throw notFound("メッセージが見つかりません");
     const anchor = target.thread_root_id ?? around;
+    threadRootId = target.thread_root_id;
     const half = Math.floor(limit / 2);
     const a = await older(anchor, true, half);
     const b = await newer(anchor, half);
@@ -547,7 +549,12 @@ channelRoutes.get("/:cid/messages", async (c) => {
     rows = a.rows;
     hasMoreBefore = a.more;
   }
-  const page: MessagePage = { messages: await hydrateMessages(db, rows, me.id), hasMoreBefore, hasMoreAfter };
+  const page: MessagePage = {
+    messages: await hydrateMessages(db, rows, me.id),
+    hasMoreBefore,
+    hasMoreAfter,
+    threadRootId,
+  };
   return c.json(page);
 });
 

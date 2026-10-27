@@ -13,7 +13,7 @@ import type {
 } from "../../shared/types";
 
 export type Panel =
-  | { kind: "thread"; rootId: string }
+  | { kind: "thread"; rootId: string; highlight?: string }
   | { kind: "profile"; userId: string }
   | { kind: "pins"; channelId: string }
   | null;

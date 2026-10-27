@@ -12,6 +12,7 @@ import {
   loadOlder,
   markChannelRead,
   markUnread,
+  openThread,
   reportError,
 } from "../store/actions";
 import { channelLabel, get, openModal, useStore } from "../store/store";
@@ -42,6 +43,16 @@ export function MessageList({ channel }: { channel: MyChannel }) {
   const prevFirst = useRef<{ id: string | undefined; height: number }>({ id: undefined, height: 0 });
   const initialScrollDone = useRef(false);
 
+  /** Highlights a jump target; thread replies open their thread with the reply highlighted. */
+  const showTarget = useCallback(
+    (target: string, threadRootId: string | null) => {
+      const inChannel = get().channelMsgs[cid]?.ids.includes(target);
+      setHighlight(inChannel || !threadRootId ? target : threadRootId);
+      if (threadRootId) openThread(threadRootId, target);
+    },
+    [cid],
+  );
+
   useEffect(() => {
     setReadMarker(get().channels[cid]?.lastReadAt ?? Date.now());
     initialScrollDone.current = false;
@@ -57,17 +68,17 @@ export function MessageList({ channel }: { channel: MyChannel }) {
         ? Promise.resolve()
         : loadLatest(cid);
     load
-      .then(() => {
+      .then((root) => {
         if (target) {
           atBottom.current = false;
-          setHighlight(target);
+          showTarget(target, root ?? null);
         }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "読み込みに失敗しました"))
       .finally(() => {
         pendingJump.current = null;
       });
-  }, [cid]);
+  }, [cid, showTarget]);
 
   // "Mark unread" moves the marker backwards: show the divider at the new spot.
   useEffect(() => {
@@ -80,15 +91,19 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     const target = consumeJumpParam();
     if (!target) return;
     atBottom.current = false;
+    const known = get().messages[target];
     if (get().channelMsgs[cid]?.ids.includes(target)) {
       setHighlight(null);
-      requestAnimationFrame(() => setHighlight(target));
+      requestAnimationFrame(() => showTarget(target, known?.threadRootId ?? null));
+    } else if (known?.threadRootId && get().channelMsgs[cid]?.ids.includes(known.threadRootId)) {
+      setHighlight(null);
+      requestAnimationFrame(() => showTarget(target, known.threadRootId));
     } else {
       loadAround(cid, target)
-        .then(() => setHighlight(target))
+        .then((root) => showTarget(target, root))
         .catch(reportError);
     }
-  }, [msgParam, cid]);
+  }, [msgParam, cid, showTarget]);
 
   const ids = st?.ids ?? [];
 

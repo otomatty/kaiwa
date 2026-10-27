@@ -890,7 +890,8 @@ function DmList() {
                   user: displayName,
                   channel: (id) => get().directory[id]?.name ?? "channel",
                 }),
-              ) || (preview.files ? "ファイルを送信しました" : "")
+              ) ||
+              (preview.shared ? "メッセージを転送しました" : preview.files ? "ファイルを送信しました" : "")
             }`
           : "まだメッセージはありません";
         return (

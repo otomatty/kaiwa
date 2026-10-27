@@ -717,8 +717,7 @@ export function MessagePreview({
   const open =
     onClick ??
     (() => {
-      if (wid) navigate(`/w/${wid}/c/${m.channelId}?msg=${m.threadRootId ?? m.id}`);
-      if (m.threadRootId) openThread(m.threadRootId);
+      if (wid) navigate(`/w/${wid}/c/${m.channelId}?msg=${m.id}`);
     });
   return (
     // biome-ignore lint/a11y/useSemanticElements: contains nested interactive mentions, so it cannot be a <button>
@@ -753,10 +752,26 @@ function SharedCard({ shared }: { shared: NonNullable<Msg["shared"]> }) {
   const author = useStore((s) => s.members[shared.userId]);
   const wid = useStore((s) => s.wid);
   const meId = useStore((s) => s.me?.id);
+  // Only link to the original when this viewer can actually open it.
+  const canOpen = useStore(
+    (s) => !!s.channels[shared.channelId] || s.directory[shared.channelId]?.kind === "public",
+  );
+  if (shared.deleted) {
+    return (
+      <div
+        className="mt-1.5 max-w-[600px] border-line-strong border-l-4 py-1 pl-3 text-[14px] text-fg-muted italic"
+        data-testid="shared-message"
+      >
+        元のメッセージは削除されました
+      </div>
+    );
+  }
   const where =
     shared.channelKind === "dm" || shared.channelKind === "group"
       ? "ダイレクトメッセージ"
-      : `#${shared.channelName}`;
+      : shared.channelKind === "private" && !canOpen
+        ? "プライベートチャンネル"
+        : `#${shared.channelName}`;
   return (
     <div
       className="mt-1.5 max-w-[600px] border-line-strong border-l-4 py-0.5 pl-3"
@@ -775,14 +790,19 @@ function SharedCard({ shared }: { shared: NonNullable<Msg["shared"]> }) {
       {shared.text && <MessageText text={shared.text} className="mt-0.5 text-[15px]" />}
       {shared.files.length > 0 && <Attachments files={shared.files} />}
       <p className="mt-1 text-[12px] text-fg-muted">
-        {where} のメッセージ · {formatRelative(shared.createdAt)} ·{" "}
-        <button
-          type="button"
-          className="text-link hover:underline"
-          onClick={() => wid && navigate(`/w/${wid}/c/${shared.channelId}?msg=${shared.id}`)}
-        >
-          元のメッセージを表示
-        </button>
+        {where} のメッセージ{shared.threadRootId ? "（スレッド）" : ""} · {formatRelative(shared.createdAt)}
+        {canOpen && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              className="text-link hover:underline"
+              onClick={() => wid && navigate(`/w/${wid}/c/${shared.channelId}?msg=${shared.id}`)}
+            >
+              元のメッセージを表示
+            </button>
+          </>
+        )}
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Check, Copy, Hash, Lock, Search, Upload, X } from "lucide-react";
+import { Check, Copy, Hash, Lock, Paperclip, Search, Upload, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { channelNameError, normalizeChannelName } from "../../shared/limits";
 import type { Member, MyChannel } from "../../shared/types";
@@ -29,7 +29,7 @@ import {
 } from "../store/store";
 import { applyTheme, getThemePref, setThemePref, type ThemePref } from "../theme";
 import { EmojiPicker } from "./EmojiPicker";
-import { Emoji } from "./MessageText";
+import { Emoji, MessageText } from "./MessageText";
 import { Avatar, Button, cx, Modal, Popover, PresenceDot, Spinner, TextField, usePresence } from "./ui";
 
 export function ModalHost() {
@@ -1564,6 +1564,7 @@ function ForwardModal({ messageId }: { messageId: string }) {
   const meId = useStore((s) => s.me?.id);
   const wid = useStore((s) => s.wid) as string;
   const [q, setQ] = useState("");
+  const [active, setActive] = useState(0);
   const [target, setTarget] = useState<{ kind: "channel" | "user"; id: string; label: string } | null>(null);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1572,26 +1573,35 @@ function ForwardModal({ messageId }: { messageId: string }) {
   const options = [
     ...Object.values(channels)
       .filter((c) => !c.archivedAt && (c.kind === "public" || c.kind === "private"))
-      .map((c) => ({ kind: "channel" as const, id: c.id, label: `#${c.name}` })),
+      .map((c) => ({
+        kind: "channel" as const,
+        id: c.id,
+        label: `${c.kind === "private" ? "" : "#"}${c.name}`,
+        icon: c.kind === "private" ? <Lock size={14} /> : <Hash size={14} />,
+      })),
     ...Object.values(channels)
       .filter((c) => c.kind === "group")
-      .map((c) => ({ kind: "channel" as const, id: c.id, label: channelLabel(c, meId) })),
+      .map((c) => ({
+        kind: "channel" as const,
+        id: c.id,
+        label: channelLabel(c, meId),
+        icon: <Users size={14} />,
+      })),
     ...Object.values(members).map((u) => ({
       kind: "user" as const,
       id: u.id,
       label: u.id === meId ? `${u.displayName}（自分）` : u.displayName,
+      icon: <Avatar user={u} size={18} />,
     })),
   ]
     .filter((o) => o.label.toLowerCase().includes(query))
     .slice(0, 8);
-  const submit = async () => {
-    if (!target) return;
-    setBusy(true);
-    try {
-      const cid = target.kind === "channel" ? target.id : (await api.openDm(wid, [target.id])).channel.id;
-      if (target.kind === "user") await refreshChannel(cid);
-      await sendMessage(cid, comment, {
-        shared: m.shared ?? {
+  const current = Math.min(active, Math.max(options.length - 1, 0));
+  // Forwarding a forward quotes the original, so preview what will actually be quoted.
+  const quoted =
+    m.shared && !m.shared.deleted
+      ? m.shared
+      : {
           id: m.id,
           channelId: m.channelId,
           channelName: get().directory[m.channelId]?.name ?? "",
@@ -1600,8 +1610,16 @@ function ForwardModal({ messageId }: { messageId: string }) {
           text: m.text,
           createdAt: m.createdAt,
           files: m.files,
-        },
-      });
+          threadRootId: m.threadRootId,
+          deleted: false,
+        };
+  const submit = async () => {
+    if (!target) return;
+    setBusy(true);
+    try {
+      const cid = target.kind === "channel" ? target.id : (await api.openDm(wid, [target.id])).channel.id;
+      if (target.kind === "user") await refreshChannel(cid);
+      await sendMessage(cid, comment, { shared: quoted });
       closeModal();
       toast(`${target.label} に転送しました`);
     } catch (err) {
@@ -1635,25 +1653,59 @@ function ForwardModal({ messageId }: { messageId: string }) {
           <input
             autoFocus
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                const n = options.length;
+                if (n) setActive((current + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                const o = options[current];
+                if (o) setTarget(o);
+              }
+            }}
             placeholder="チャンネル名またはメンバー名を入力"
             aria-label="転送先を検索"
+            role="combobox"
+            aria-expanded
+            aria-controls="forward-targets"
+            aria-activedescendant={
+              options[current] ? `fwd-${options[current].kind}-${options[current].id}` : undefined
+            }
             className="h-10 w-full rounded-md border border-line-strong bg-bg px-3 outline-none focus:border-link"
           />
-          <div className="mt-1 max-h-56 overflow-y-auto rounded-md border border-line" role="listbox">
-            {options.map((o) => (
+          <div
+            id="forward-targets"
+            className="mt-1 max-h-56 overflow-y-auto rounded-md border border-line"
+            role="listbox"
+          >
+            {options.map((o, i) => (
               <button
                 key={`${o.kind}-${o.id}`}
+                id={`fwd-${o.kind}-${o.id}`}
                 type="button"
                 role="option"
-                aria-selected={false}
+                aria-selected={i === current}
+                tabIndex={-1}
+                onMouseEnter={() => setActive(i)}
                 onClick={() => setTarget(o)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] hover:bg-link hover:text-white"
+                className={cx(
+                  "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px]",
+                  i === current && "bg-link text-white",
+                )}
               >
-                {o.kind === "user" ? <Avatar user={members[o.id]} size={18} /> : <Hash size={14} />}
+                {o.icon}
                 {o.label}
               </button>
             ))}
+            {options.length === 0 && (
+              <p className="px-3 py-2 text-[14px] text-fg-muted">一致する宛先はありません</p>
+            )}
           </div>
         </div>
       )}
@@ -1665,9 +1717,21 @@ function ForwardModal({ messageId }: { messageId: string }) {
         rows={2}
         className="w-full resize-none rounded-md border border-line-strong bg-bg px-3 py-2 text-[15px] outline-none focus:border-link"
       />
-      <div className="mt-3 rounded-md border border-line bg-bg-soft p-3 text-[14px]">
-        <p className="mb-1 font-bold">{members[m.userId]?.displayName}</p>
-        <p className="line-clamp-4 whitespace-pre-wrap text-fg-muted">{m.text || "（ファイル）"}</p>
+      <div
+        className="mt-3 max-h-40 overflow-hidden border-line-strong border-l-4 py-0.5 pl-3 text-[14px]"
+        data-testid="forward-preview"
+      >
+        <div className="mb-0.5 flex items-center gap-1.5">
+          <Avatar user={members[quoted.userId]} size={18} />
+          <span className="font-bold">{members[quoted.userId]?.displayName}</span>
+        </div>
+        {quoted.text && <MessageText text={quoted.text} />}
+        {quoted.files.length > 0 && (
+          <p className="text-fg-muted">
+            <Paperclip size={12} className="mr-1 inline" aria-hidden />
+            {quoted.files.map((f) => f.name).join("、")}
+          </p>
+        )}
       </div>
     </Modal>
   );

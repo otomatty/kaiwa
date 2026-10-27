@@ -70,6 +70,7 @@ export interface MessageRow {
   edited_at: number | null;
   deleted_at: number | null;
   shared_from?: string | null;
+  shared_deleted_at?: number | null;
 }
 
 export interface FileRow {
@@ -292,14 +293,32 @@ export async function hydrateMessages(
     }
   }
 
-  // Forwarded messages: attach a snapshot of the original.
+  // Forwarded messages: attach a snapshot of the original (or a placeholder once it is deleted).
+  const deletedSnapshot = (id: string): SharedMessage => ({
+    id,
+    channelId: "",
+    channelName: "",
+    channelKind: "public",
+    userId: "",
+    text: "",
+    createdAt: 0,
+    files: [],
+    threadRootId: null,
+    deleted: true,
+  });
+  for (const r of rows) {
+    if (!r.shared_from && r.shared_deleted_at) {
+      const m = byId.get(r.id);
+      if (m) m.shared = deletedSnapshot("");
+    }
+  }
   const sharedIds = [...new Set(rows.map((r) => r.shared_from).filter((x): x is string => !!x))];
   for (const ids of chunk(sharedIds, 80)) {
     const [orig, origFiles] = await db.batch([
       db
         .prepare(
           `SELECT m.*, c.name AS c_name, c.kind AS c_kind FROM messages m JOIN channels c ON c.id = m.channel_id
-           WHERE m.id IN (${placeholders(ids.length)}) AND m.deleted_at IS NULL`,
+           WHERE m.id IN (${placeholders(ids.length)})`,
         )
         .bind(...ids),
       db.prepare(`SELECT * FROM files WHERE message_id IN (${placeholders(ids.length)})`).bind(...ids),
@@ -313,22 +332,28 @@ export async function hydrateMessages(
       c_name: string;
       c_kind: ChannelKind;
     })[]) {
-      snapshots.set(o.id, {
-        id: o.id,
-        channelId: o.channel_id,
-        channelName: o.c_name,
-        channelKind: o.c_kind,
-        userId: o.user_id,
-        text: o.text,
-        createdAt: o.created_at,
-        files: files.get(o.id) ?? [],
-      });
+      snapshots.set(
+        o.id,
+        o.deleted_at
+          ? deletedSnapshot(o.id)
+          : {
+              id: o.id,
+              channelId: o.channel_id,
+              channelName: o.c_name,
+              channelKind: o.c_kind,
+              userId: o.user_id,
+              text: o.text,
+              createdAt: o.created_at,
+              files: files.get(o.id) ?? [],
+              threadRootId: o.thread_root_id,
+              deleted: false,
+            },
+      );
     }
     for (const r of rows) {
       if (r.shared_from) {
         const m = byId.get(r.id);
-        const snap = snapshots.get(r.shared_from);
-        if (m && snap) m.shared = snap;
+        if (m) m.shared = snapshots.get(r.shared_from) ?? deletedSnapshot(r.shared_from);
       }
     }
   }

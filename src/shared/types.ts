@@ -68,7 +68,7 @@ export interface MyChannel extends Channel {
   mentionCount: number;
   latestAt: number | null;
   /** Latest message preview (DMs only). */
-  latestPreview?: { userId: string; text: string; files: number } | null;
+  latestPreview?: { userId: string; text: string; files: number; shared?: boolean } | null;
   starred: boolean;
   muted: boolean;
   hidden: boolean;
@@ -111,6 +111,10 @@ export interface SharedMessage {
   text: string;
   createdAt: number;
   files: FileInfo[];
+  /** Set when the original is a thread reply. */
+  threadRootId: string | null;
+  /** The original was deleted: only a placeholder is shown. */
+  deleted: boolean;
 }
 
 export interface Message {
@@ -172,6 +176,8 @@ export interface MessagePage {
   messages: Message[];
   hasMoreBefore: boolean;
   hasMoreAfter: boolean;
+  /** For `around` requests whose target is a thread reply: the thread it belongs to. */
+  threadRootId?: string | null;
 }
 
 export interface ThreadView {

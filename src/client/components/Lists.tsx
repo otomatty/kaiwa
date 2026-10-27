@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { emojify } from "../lib/emoji";
 import { formatRelative, formatWhen } from "../lib/format";
 import { navigate } from "../lib/router";
-import { completeSaved, openThread, reportError, setReminder, upsertMessages } from "../store/actions";
+import { completeSaved, reportError, setReminder, upsertMessages } from "../store/actions";
 import { channelLabel, displayName, get, set, useStore } from "../store/store";
 import { Emoji } from "./MessageText";
 import { ReminderPicker } from "./SchedulePicker";
@@ -29,15 +29,11 @@ function plain(text: string) {
   );
 }
 
-function openMessage(channelId: string, messageId: string, threadRootId: string | null) {
+/** Opens a message in its channel; thread replies open their thread with the reply highlighted. */
+function openMessage(channelId: string, messageId: string, _threadRootId: string | null) {
   const wid = get().wid;
   if (!wid) return;
-  if (threadRootId) {
-    navigate(`/w/${wid}/c/${channelId}?msg=${threadRootId}`);
-    openThread(threadRootId);
-  } else {
-    navigate(`/w/${wid}/c/${channelId}?msg=${messageId}`);
-  }
+  navigate(`/w/${wid}/c/${channelId}?msg=${messageId}`);
   set({ mobileSidebar: false });
 }
 

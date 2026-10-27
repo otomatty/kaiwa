@@ -7,6 +7,7 @@ import { badRequest, conflict, HttpError, parseJson } from "../lib/http";
 import { newId, pickColor } from "../lib/ids";
 import { hub, publish } from "../lib/realtime";
 import { toMember, toUser, type UserRow } from "../lib/rows";
+import { sniffStoredImage } from "../lib/sniff";
 import { listMyWorkspaces } from "./workspaces";
 
 export const authRoutes = new Hono<AppEnv>();
@@ -101,10 +102,11 @@ meRoutes.patch("/", requireAuth, async (c) => {
     values.push(body.away ? 1 : 0);
   }
   if (body.avatarFileId) {
-    const f = await c.env.DB.prepare("SELECT mime FROM files WHERE id = ?1 AND user_id = ?2")
+    const f = await c.env.DB.prepare("SELECT r2_key FROM files WHERE id = ?1 AND user_id = ?2")
       .bind(body.avatarFileId, me.id)
-      .first<{ mime: string }>();
-    if (!f?.mime.startsWith("image/")) throw badRequest("アイコンには画像ファイルを指定してください");
+      .first<{ r2_key: string }>();
+    if (!f || !(await sniffStoredImage(c.env.FILES, f.r2_key)))
+      throw badRequest("アイコンには画像ファイル（PNG・JPEG・GIF・WebP）を指定してください");
   }
   if (sets.length > 0) {
     await c.env.DB.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?1`)

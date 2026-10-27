@@ -78,7 +78,24 @@ fileRoutes.get("/:fid", async (c) => {
   if (!row) throw notFound("ファイルが見つかりません");
 
   if (row.channel_id) {
-    await requireChannel(db, row.channel_id, me.id);
+    const direct = await requireChannel(db, row.channel_id, me.id).then(
+      () => true,
+      () => false,
+    );
+    // A file in a channel you can't read is still visible through a forward you can read.
+    const viaForward =
+      !direct && row.message_id
+        ? await db
+            .prepare(
+              `SELECT 1 FROM messages s JOIN channels c ON c.id = s.channel_id
+               WHERE s.shared_from = ?1 AND s.deleted_at IS NULL
+                 AND (c.kind = 'public' OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?2))
+               LIMIT 1`,
+            )
+            .bind(row.message_id, me.id)
+            .first()
+        : null;
+    if (!direct && !viaForward) throw notFound("ファイルが見つかりません");
   } else if (row.user_id !== me.id) {
     // Unattached files are private to the uploader, except avatars which any
     // member of a shared workspace may load.

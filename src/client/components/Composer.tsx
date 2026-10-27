@@ -140,9 +140,24 @@ export function Composer({
   const draftRef = useRef({ key: draftKey(channelId, threadRootId), value });
   useEffect(() => {
     draftRef.current.value = value;
+    // Clearing the box removes the draft right away so a quick reload can't bring it back.
+    if (!value.trim()) {
+      saveDraft(draftRef.current.key, value);
+      return;
+    }
     const t = setTimeout(() => saveDraft(draftRef.current.key, draftRef.current.value), 250);
     return () => clearTimeout(t);
   }, [value]);
+  // Don't lose what was typed in the last moments before a reload or tab close.
+  useEffect(() => {
+    const flush = () => saveDraft(draftRef.current.key, draftRef.current.value);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
+  }, []);
   useEffect(() => {
     draftRef.current = { key: draftKey(channelId, threadRootId), value: readDraft(channelId, threadRootId) };
     return () => saveDraft(draftRef.current.key, draftRef.current.value);

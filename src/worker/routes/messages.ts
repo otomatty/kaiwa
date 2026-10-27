@@ -184,6 +184,34 @@ export async function createMessage(
 export const messageRoutes = new Hono<AppEnv>();
 messageRoutes.use("*", requireAuth);
 
+/** Forwarded copies of a message, so edits and deletes of the original reach them. */
+async function forwardsOf(db: D1Database, id: string) {
+  const { results } = await db
+    .prepare(
+      "SELECT id, channel_id, workspace_id FROM messages WHERE shared_from = ?1 AND deleted_at IS NULL LIMIT 100",
+    )
+    .bind(id)
+    .all<{ id: string; channel_id: string; workspace_id: string }>();
+  return results;
+}
+
+async function publishForwards(
+  c: Context<AppEnv>,
+  forwards: { id: string; channel_id: string; workspace_id: string }[],
+) {
+  const db = c.env.DB;
+  for (const f of forwards) {
+    const dto = await publicMessage(db, f.id);
+    if (!dto) continue;
+    publish(
+      c,
+      f.workspace_id,
+      { type: "message.updated", message: dto },
+      await channelMemberIds(db, f.channel_id),
+    );
+  }
+}
+
 messageRoutes.patch("/:mid", async (c) => {
   const me = c.get("user");
   const db = c.env.DB;
@@ -209,6 +237,7 @@ messageRoutes.patch("/:mid", async (c) => {
   ]);
   const dto = await publicMessage(db, message.id);
   if (dto) publish(c, channel.workspace_id, { type: "message.updated", message: dto }, members);
+  await publishForwards(c, await forwardsOf(db, message.id));
   const mine = await hydrateOne(db, { ...message, text, edited_at: now }, me.id);
   return c.json({ message: mine });
 });
@@ -224,10 +253,16 @@ messageRoutes.delete("/:mid", async (c) => {
     .prepare("SELECT r2_key FROM files WHERE message_id = ?1")
     .bind(message.id)
     .all<{ r2_key: string }>();
+  const forwards = await forwardsOf(db, message.id);
+  // Must run before the row is deleted: the FK then clears shared_from on the copies.
+  const markForwards = db
+    .prepare("UPDATE messages SET shared_deleted_at = ?2 WHERE shared_from = ?1")
+    .bind(message.id, Date.now());
 
   if (message.reply_count > 0) {
     // Keep the root as a tombstone so the thread stays reachable.
     await db.batch([
+      markForwards,
       db.prepare("UPDATE messages SET text = '', deleted_at = ?2 WHERE id = ?1").bind(message.id, Date.now()),
       db.prepare("DELETE FROM mentions WHERE message_id = ?1").bind(message.id),
       db.prepare("DELETE FROM reactions WHERE message_id = ?1").bind(message.id),
@@ -238,6 +273,7 @@ messageRoutes.delete("/:mid", async (c) => {
     if (dto) events.push({ type: "message.updated", message: dto });
   } else {
     const stmts = [
+      markForwards,
       db.prepare("DELETE FROM files WHERE message_id = ?1").bind(message.id),
       db.prepare("DELETE FROM messages WHERE id = ?1").bind(message.id),
     ];
@@ -288,6 +324,7 @@ messageRoutes.delete("/:mid", async (c) => {
     }
   }
   publish(c, channel.workspace_id, events, members);
+  await publishForwards(c, forwards);
   return c.json({ ok: true });
 });
 

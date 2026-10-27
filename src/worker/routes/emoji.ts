@@ -9,6 +9,7 @@ import type { AppEnv } from "../lib/context";
 import { badRequest, conflict, forbidden, notFound, parseJson } from "../lib/http";
 import { publish } from "../lib/realtime";
 import { fileUrl } from "../lib/rows";
+import { sniffStoredImage } from "../lib/sniff";
 
 const STANDARD = new Set((emojiData as [string, string[], number, string][]).flatMap((r) => r[1]));
 
@@ -40,11 +41,12 @@ emojiRoutes.post("/:wid/emoji", async (c) => {
     throw conflict(`:${body.name}: は標準の絵文字として使われています`, "name_taken");
   const file = await db
     .prepare(
-      "SELECT mime, size FROM files WHERE id = ?1 AND user_id = ?2 AND workspace_id = ?3 AND message_id IS NULL",
+      "SELECT mime, size, r2_key FROM files WHERE id = ?1 AND user_id = ?2 AND workspace_id = ?3 AND message_id IS NULL",
     )
     .bind(body.fileId, me.id, wid)
-    .first<{ mime: string; size: number }>();
-  if (!file || !/^image\/(png|gif|jpeg|webp)$/.test(file.mime))
+    .first<{ mime: string; size: number; r2_key: string }>();
+  // Check the actual contents, not just the type the browser claimed.
+  if (!file || !(await sniffStoredImage(c.env.FILES, file.r2_key)))
     throw badRequest("PNG / GIF / JPEG / WebP の画像を選んでください");
   if (file.size > 1024 * 1024) throw badRequest("絵文字の画像は1MBまでです");
   const dupe = await db

@@ -43,7 +43,7 @@ function PanelShell({
   );
 }
 
-export function ThreadPanel({ rootId }: { rootId: string }) {
+export function ThreadPanel({ rootId, highlight }: { rootId: string; highlight?: string }) {
   const root = useStore((s) => s.messages[rootId]);
   const thread = useStore((s) => s.threads[rootId]);
   const channel = useStore((s) =>
@@ -57,11 +57,12 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
 
   useEffect(() => {
     setError(null);
-    atBottom.current = true;
+    // A highlighted reply scrolls itself into view instead of sticking to the bottom.
+    atBottom.current = !highlight;
     loadThread(rootId).catch((err: unknown) =>
       setError(err instanceof Error ? err.message : "読み込みに失敗しました"),
     );
-  }, [rootId]);
+  }, [rootId, highlight]);
 
   const replies = thread?.replyIds ?? [];
 
@@ -145,7 +146,13 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
               const m = messages[id];
               const prev = i > 0 ? messages[replies[i - 1] as string] : undefined;
               return m ? (
-                <MessageItem key={id} id={id} context="thread" grouped={isGrouped(m, prev)} />
+                <MessageItem
+                  key={id}
+                  id={id}
+                  context="thread"
+                  grouped={isGrouped(m, prev)}
+                  highlight={highlight === id}
+                />
               ) : null;
             })}
           </>
@@ -268,7 +275,7 @@ export function PinsPanel({ channelId }: { channelId: string }) {
 export function RightPanel() {
   const panel = useStore((s) => s.panel);
   if (!panel) return null;
-  if (panel.kind === "thread") return <ThreadPanel rootId={panel.rootId} />;
+  if (panel.kind === "thread") return <ThreadPanel rootId={panel.rootId} highlight={panel.highlight} />;
   if (panel.kind === "profile") return <ProfilePanel userId={panel.userId} />;
   return <PinsPanel channelId={panel.channelId} />;
 }

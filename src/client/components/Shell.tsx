@@ -74,13 +74,15 @@ export function WorkspaceShell({ wid }: { wid: string }) {
     else goToDefaultChannel();
   }, [loaded, cid, view, wid, channels]);
 
-  // Unread count in the tab title.
+  // Unread count in the tab title: mentions, DMs and threads with new replies (as on the rail badges).
+  const unreadThreads = useStore((s) => s.unreadThreads);
   useEffect(() => {
-    const n = Object.values(channels).reduce(
-      (acc, c) =>
-        acc + (c.kind === "dm" || c.kind === "group" ? (c.muted ? 0 : c.unreadCount) : c.mentionCount),
-      0,
-    );
+    const n =
+      Object.values(channels).reduce(
+        (acc, c) =>
+          acc + (c.kind === "dm" || c.kind === "group" ? (c.muted ? 0 : c.unreadCount) : c.mentionCount),
+        0,
+      ) + unreadThreads;
     const base = document.title.replace(/^\(\d+\) /, "");
     document.title = n > 0 ? `(${n}) ${base}` : base;
   });

@@ -32,7 +32,7 @@ import { ActivityList, SavedList } from "./Lists";
 import { MessageItem, MessagePreview } from "./Message";
 import { HighlightContext, MessageText as MessageTextBlock } from "./MessageText";
 import { formatScheduleTime } from "./SchedulePicker";
-import { Avatar, Button, cx, PresenceDot, Spinner, usePresence } from "./ui";
+import { Avatar, Button, cx, DndIcon, PresenceDot, Spinner, usePresence } from "./ui";
 
 function ViewHeader({
   icon,
@@ -482,6 +482,7 @@ function PersonCard({ id }: { id: string }) {
       <div className="p-3">
         <p className="flex items-center gap-1.5 truncate font-bold text-[15px]">
           {m.displayName} <PresenceDot presence={presence} size={9} />
+          <DndIcon until={m.dndUntil} />
         </p>
         <p className="truncate text-[13px] text-fg-muted">{m.title || m.fullName || " "}</p>
       </div>
@@ -776,7 +777,8 @@ export function UnreadsView() {
   const meId = useStore((s) => s.me?.id);
   const channels = useStore((s) => s.channels);
   const unread = Object.values(channels)
-    .filter((c) => c.unreadCount > 0 && !c.hidden)
+    // Muted conversations stay out of the list unless they mention you.
+    .filter((c) => c.unreadCount > 0 && !c.hidden && (!c.muted || c.mentionCount > 0))
     .sort((a, b) => (b.latestAt ?? 0) - (a.latestAt ?? 0));
   const [loaded, setLoaded] = useState<Record<string, { key: string; ids: string[] }>>({});
   const channelKey = (c: (typeof unread)[number]) => `${c.lastReadAt}:${c.unreadCount}`;

@@ -2,13 +2,24 @@ import { describe, expect, it } from "vitest";
 import type { Bootstrap, CustomEmoji, FileInfo } from "../../src/shared/types";
 import { signup, workspaceWith } from "./helpers";
 
-function png(name = "party.png") {
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
+
+function png(name = "party.png", content: string | Uint8Array = PNG_BYTES) {
   const fd = new FormData();
-  fd.append("file", new File(["PNGDATA"], name, { type: "image/png" }));
+  fd.append("file", new File([content], name, { type: "image/png" }));
   return fd;
 }
 
 describe("custom emoji", () => {
+  it("rejects files that only claim to be images", async () => {
+    const owner = await signup("owner");
+    const wid = await workspaceWith(owner);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const up = await owner.req<{ file: FileInfo }>("POST", `/workspaces/${wid}/files`, png("fake.png", svg));
+    const add = await owner.post(`/workspaces/${wid}/emoji`, { name: "fakepng", fileId: up.body.file.id });
+    expect(add.status).toBe(400);
+  });
+
   it("registers, serves and deletes workspace emoji", async () => {
     const owner = await signup("owner");
     const bob = await signup("bob");

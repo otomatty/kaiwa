@@ -222,7 +222,12 @@ function handle(e: ServerEvent) {
         if (inChannel) {
           patch.latestAt = m.createdAt;
           if (ch.kind === "dm" || ch.kind === "group") {
-            patch.latestPreview = { userId: m.userId, text: m.text.slice(0, 200), files: m.files.length };
+            patch.latestPreview = {
+              userId: m.userId,
+              text: m.text.slice(0, 200),
+              files: m.files.length,
+              shared: !!m.shared,
+            };
           }
           if (m.createdAt > ch.lastReadAt && !m.deletedAt && (!m.subtype || m.subtype === "me")) {
             patch.unreadCount = ch.unreadCount + 1;
@@ -236,7 +241,12 @@ function handle(e: ServerEvent) {
         updateChannel(m.channelId, {
           latestAt: m.createdAt,
           lastReadAt: Math.max(ch.lastReadAt, m.createdAt),
-          latestPreview: { userId: m.userId, text: m.text.slice(0, 200), files: m.files.length },
+          latestPreview: {
+            userId: m.userId,
+            text: m.text.slice(0, 200),
+            files: m.files.length,
+            shared: !!m.shared,
+          },
         });
       } else if (!ch && m.userId !== meId) {
         // A DM/group we haven't loaded yet (e.g. someone just messaged us).
@@ -254,9 +264,14 @@ function handle(e: ServerEvent) {
     case "message.updated":
       upsertMessages([e.message]);
       return;
-    case "message.deleted":
+    case "message.deleted": {
       removeMessage(e.messageId);
+      // The deleted message may have been unread: let the server recount.
+      const ch = s.channels[e.channelId];
+      if (ch && !e.threadRootId && (ch.unreadCount > 0 || ch.kind === "dm" || ch.kind === "group"))
+        void refreshChannel(e.channelId);
       return;
+    }
     case "reactions.updated":
       patchMessage(e.messageId, { reactions: e.reactions });
       if (meId && s.messages[e.messageId]?.userId === meId)
