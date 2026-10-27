@@ -1,5 +1,6 @@
 import { toPlainText } from "../../shared/mrkdwn";
 import type { ClientEvent, Message, ServerEvent } from "../../shared/types";
+import { emojify } from "../lib/emoji";
 import { navigate } from "../lib/router";
 import {
   currentChannelId,
@@ -133,10 +134,12 @@ function notify(m: Message) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   if (localStorage.getItem("kaiwa:notifications") === "off") return;
   const title = isDm ? displayName(m.userId) : `#${ch ? channelLabel(ch, me.id) : ""}`;
-  const body = toPlainText(m.text, {
-    user: displayName,
-    channel: (id) => s.directory[id]?.name ?? "channel",
-  });
+  const body = emojify(
+    toPlainText(m.text, {
+      user: displayName,
+      channel: (id) => s.directory[id]?.name ?? "channel",
+    }),
+  );
   const n = new Notification(title, {
     body: isDm ? body : `${displayName(m.userId)}: ${body}`,
     tag: m.id,

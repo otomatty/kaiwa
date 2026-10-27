@@ -223,7 +223,7 @@ export function TopBar() {
           </div>
         )}
       </div>
-      <div className="flex w-[300px] shrink-0 items-center justify-end gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-2 md:w-[300px]">
         {connection === "offline" && (
           <span
             className="flex items-center gap-1 rounded bg-badge px-2 py-0.5 text-[12px] text-white"

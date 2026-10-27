@@ -86,3 +86,8 @@ export function rememberEmoji(name: string) {
     // storage unavailable
   }
 }
+
+/** Replaces :shortcode: with the emoji character (for plain-text previews and notifications). */
+export function emojify(text: string): string {
+  return text.replace(/:([a-z0-9_+\-']+):/g, (m, name: string) => emojiChar(name) ?? m);
+}

@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toPlainText } from "../../shared/mrkdwn";
 import type { MyChannel } from "../../shared/types";
 import { api } from "../lib/api";
+import { emojify } from "../lib/emoji";
 import { formatRelative } from "../lib/format";
 import { navigate, routes, usePath } from "../lib/router";
 import { leaveChannel, logout, markChannelRead, reportError, setChannelPrefs } from "../store/actions";
@@ -123,6 +124,9 @@ export function WorkspaceRail() {
             key={t.id}
             type="button"
             onClick={() => set({ sidebarTab: t.id, mobileSidebar: true })}
+            aria-label={
+              t.badge ? `${t.label}（未読 ${t.badge}件）` : t.dot ? `${t.label}（新着あり）` : t.label
+            }
             className="group flex w-[76px] flex-col items-center gap-0.5 py-1 text-[10px] tracking-tight whitespace-nowrap"
             aria-current={tab === t.id ? "page" : undefined}
           >
@@ -786,10 +790,12 @@ function DmList() {
         const preview = c.latestPreview;
         const previewText = preview
           ? `${preview.userId === meId ? "あなた: " : c.kind === "group" ? `${displayName(preview.userId)}: ` : ""}${
-              toPlainText(preview.text, {
-                user: displayName,
-                channel: (id) => get().directory[id]?.name ?? "channel",
-              }) || (preview.files ? "ファイルを送信しました" : "")
+              emojify(
+                toPlainText(preview.text, {
+                  user: displayName,
+                  channel: (id) => get().directory[id]?.name ?? "channel",
+                }),
+              ) || (preview.files ? "ファイルを送信しました" : "")
             }`
           : "まだメッセージはありません";
         return (

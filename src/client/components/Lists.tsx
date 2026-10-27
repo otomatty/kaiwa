@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toPlainText } from "../../shared/mrkdwn";
 import type { ActivityItem, SavedItem } from "../../shared/types";
 import { api } from "../lib/api";
+import { emojify } from "../lib/emoji";
 import { formatRelative } from "../lib/format";
 import { navigate } from "../lib/router";
 import { openThread, reportError, upsertMessages } from "../store/actions";
@@ -22,7 +23,9 @@ function useChannelName() {
 }
 
 function plain(text: string) {
-  return toPlainText(text, { user: displayName, channel: (id) => get().directory[id]?.name ?? "channel" });
+  return emojify(
+    toPlainText(text, { user: displayName, channel: (id) => get().directory[id]?.name ?? "channel" }),
+  );
 }
 
 function openMessage(channelId: string, messageId: string, threadRootId: string | null) {
@@ -72,7 +75,7 @@ export function ActivityList({ dark }: { dark?: boolean }) {
 
   return (
     <div className={cx(dark ? "" : "mx-auto w-full max-w-[760px] px-5 py-4")}>
-      <div className={cx("flex gap-1 overflow-x-auto", dark ? "px-3 py-3" : "mb-3")}>
+      <div className={cx("flex flex-wrap gap-1", dark ? "px-3 py-3" : "mb-3")}>
         {tabs.map((t) => (
           <button
             key={t.id}
