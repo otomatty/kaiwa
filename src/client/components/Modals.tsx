@@ -1715,10 +1715,12 @@ export function useGlobalShortcuts() {
         active instanceof HTMLTextAreaElement ||
         active instanceof HTMLSelectElement ||
         (active instanceof HTMLElement && active.isContentEditable);
+      const onControl = active instanceof HTMLButtonElement || active instanceof HTMLAnchorElement;
       if (
         !editing &&
         !s.modal &&
         e.key.length === 1 &&
+        !(e.key === " " && onControl) &&
         !e.metaKey &&
         !e.ctrlKey &&
         !e.altKey &&
