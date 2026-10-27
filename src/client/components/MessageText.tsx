@@ -1,4 +1,4 @@
-import { Fragment, memo, type ReactNode } from "react";
+import { createContext, Fragment, memo, type ReactNode, useContext } from "react";
 import { type Block, type Inline, isJumboEmoji, parse } from "../../shared/mrkdwn";
 import { emojiChar } from "../lib/emoji";
 import { navigate } from "../lib/router";
@@ -74,6 +74,33 @@ function ChannelMention({ id }: { id: string }) {
   );
 }
 
+/** Search terms to highlight inside rendered message text (search results). */
+export const HighlightContext = createContext<string[]>([]);
+
+function Highlighted({ text }: { text: string }) {
+  const terms = useContext(HighlightContext);
+  if (terms.length === 0) return <>{text}</>;
+  const escaped = terms.filter(Boolean).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (escaped.length === 0) return <>{text}</>;
+  const re = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(re);
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: stable split
+          <mark key={i} className="rounded-[2px] bg-mention px-px text-inherit">
+            {p}
+          </mark>
+        ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: stable split
+          <Fragment key={i}>{p}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 function safeHref(url: string): string | null {
   return /^(https?:|mailto:)/i.test(url) ? url : null;
 }
@@ -83,7 +110,7 @@ function renderInline(nodes: Inline[], jumbo: boolean): ReactNode[] {
     const key = i;
     switch (n.t) {
       case "text":
-        return <Fragment key={key}>{n.v}</Fragment>;
+        return <Highlighted key={key} text={n.v} />;
       case "br":
         return <br key={key} />;
       case "bold":

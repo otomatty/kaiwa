@@ -20,6 +20,7 @@ import { channelLabel, get, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
 import { ActivityList, SavedList } from "./Lists";
 import { MessageItem, MessagePreview } from "./Message";
+import { HighlightContext } from "./MessageText";
 import { Avatar, Button, cx, PresenceDot, Spinner, usePresence } from "./ui";
 
 function ViewHeader({
@@ -533,23 +534,27 @@ export function SearchView() {
                 {hasMore ? "+" : ""} 件のメッセージ
               </p>
               {results.map((r) => (
-                <MessagePreview
+                <HighlightContext.Provider
                   key={r.message.id}
-                  m={r.message}
-                  header={
-                    <span className="flex items-center gap-1 font-bold">
-                      {r.channel.kind === "dm" || r.channel.kind === "group" ? (
-                        channelLabel({ ...r.channel, memberIds: r.channel.memberIds }, meId)
-                      ) : (
-                        <>
-                          <Hash size={13} />
-                          {r.channel.name}
-                        </>
-                      )}
-                      {r.message.threadRootId && <span className="font-normal">（スレッド）</span>}
-                    </span>
-                  }
-                />
+                  value={parsed.text.split(/\s+/).filter(Boolean)}
+                >
+                  <MessagePreview
+                    m={r.message}
+                    header={
+                      <span className="flex items-center gap-1 font-bold">
+                        {r.channel.kind === "dm" || r.channel.kind === "group" ? (
+                          channelLabel({ ...r.channel, memberIds: r.channel.memberIds }, meId)
+                        ) : (
+                          <>
+                            <Hash size={13} />
+                            {r.channel.name}
+                          </>
+                        )}
+                        {r.message.threadRootId && <span className="font-normal">（スレッド）</span>}
+                      </span>
+                    }
+                  />
+                </HighlightContext.Provider>
               ))}
               {hasMore && (
                 <div className="flex justify-center pt-2">
