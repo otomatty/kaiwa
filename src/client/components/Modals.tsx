@@ -10,6 +10,7 @@ import {
   dropChannel,
   joinChannel,
   leaveChannel,
+  markChannelRead,
   openDm,
   refreshChannel,
   reportError,
@@ -1552,6 +1553,7 @@ function ShortcutsModal() {
     ["Alt + ↑ / ↓", "前 / 次のチャンネルへ"],
     ["Alt + Shift + ↑ / ↓", "前 / 次の未読チャンネルへ"],
     ["Esc", "パネルを閉じる / 現在のチャンネルを既読にする"],
+    ["Shift + Esc", "すべてのチャンネルを既読にする"],
     ["↑（入力欄が空のとき）", "最後に送信したメッセージを編集"],
     ["Ctrl / ⌘ + B / I", "太字 / 斜体"],
     ["Ctrl / ⌘ + Shift + X", "取り消し線"],
@@ -1605,15 +1607,21 @@ export function useGlobalShortcuts() {
       } else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         cycleChannel(e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
+      } else if (e.key === "Escape" && e.shiftKey && !s.modal) {
+        // Shift+Esc: mark everything as read
+        e.preventDefault();
+        for (const ch of Object.values(s.channels)) {
+          if (ch.unreadCount > 0 || ch.mentionCount > 0)
+            markChannelRead(ch.id, Math.max(Date.now(), ch.latestAt ?? 0));
+        }
+        toast("すべてのチャンネルを既読にしました");
       } else if (e.key === "Escape" && !s.modal) {
         if (s.panel) set({ panel: null });
         else {
           const cid = /\/c\/([^/?]+)/.exec(window.location.pathname)?.[1];
           const ch = cid ? s.channels[cid] : undefined;
           if (ch && ch.unreadCount > 0) {
-            void import("../store/actions").then((a) =>
-              a.markChannelRead(ch.id, Math.max(Date.now(), ch.latestAt ?? 0)),
-            );
+            markChannelRead(ch.id, Math.max(Date.now(), ch.latestAt ?? 0));
           }
         }
       }

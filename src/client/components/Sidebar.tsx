@@ -20,9 +20,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toPlainText } from "../../shared/mrkdwn";
 import type { MyChannel } from "../../shared/types";
+import { api } from "../lib/api";
 import { formatRelative } from "../lib/format";
 import { navigate, routes, usePath } from "../lib/router";
-import { leaveChannel, markChannelRead, setChannelPrefs } from "../store/actions";
+import { leaveChannel, logout, markChannelRead, reportError, setChannelPrefs } from "../store/actions";
 import { channelLabel, displayName, get, openModal, type SidebarTab, set, useStore } from "../store/store";
 import { ActivityList, SavedList } from "./Lists";
 import { Emoji } from "./MessageText";
@@ -200,9 +201,12 @@ function UserMenu({ onClose }: { onClose: () => void }) {
       </div>
       <MenuItem
         onClick={run(async () => {
-          const { api } = await import("../lib/api");
-          await api.updateMe({ away: !me.away });
-          set((s) => ({ me: s.me ? { ...s.me, away: !me.away } : s.me }));
+          try {
+            await api.updateMe({ away: !me.away });
+            set((s) => ({ me: s.me ? { ...s.me, away: !me.away } : s.me }));
+          } catch (err) {
+            reportError(err);
+          }
         })}
       >
         {me.away ? "自分をアクティブに設定する" : "自分を離席中に設定する"}
@@ -216,14 +220,7 @@ function UserMenu({ onClose }: { onClose: () => void }) {
         キーボードショートカット
       </MenuItem>
       <MenuSeparator />
-      <MenuItem
-        onClick={run(async () => {
-          const { logout } = await import("../store/actions");
-          await logout();
-        })}
-      >
-        サインアウト
-      </MenuItem>
+      <MenuItem onClick={run(() => void logout())}>サインアウト</MenuItem>
     </div>
   );
 }

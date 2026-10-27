@@ -9,6 +9,7 @@ import { authRoutes, meRoutes } from "./routes/auth";
 import { channelRoutes, workspaceChannelRoutes } from "./routes/channels";
 import { fileRoutes, fileUploadRoutes } from "./routes/files";
 import { messageRoutes, postMessage, threadRoutes } from "./routes/messages";
+import { unfurlRoutes } from "./routes/unfurl";
 import { viewRoutes } from "./routes/views";
 import { inviteRoutes, workspaceRoutes } from "./routes/workspaces";
 
@@ -54,6 +55,7 @@ app.route("/channels", channelRoutes);
 app.route("/messages", messageRoutes);
 app.route("/threads", threadRoutes);
 app.route("/files", fileRoutes);
+app.route("/unfurl", unfurlRoutes);
 
 app.notFound((c) => c.json({ error: "not_found", message: "Not found" }, 404));
 

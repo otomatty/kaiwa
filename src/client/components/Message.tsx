@@ -27,6 +27,7 @@ import {
 } from "../store/actions";
 import { displayName, get, type LocalMessage, openModal, toast, useStore } from "../store/store";
 import { EmojiPicker, QuickReactions } from "./EmojiPicker";
+import { LinkPreview, linksIn } from "./LinkPreview";
 import { Emoji, MessageText } from "./MessageText";
 import { Avatar, Button, cx, MenuItem, MenuSeparator, Popover } from "./ui";
 
@@ -183,6 +184,9 @@ export const MessageItem = memo(function MessageItem({
                 <MessageText text={m.text} edited={!!m.editedAt} className="text-[15px]" />
               ))}
             {m.files.length > 0 && <Attachments files={m.files} />}
+            {!m.pending &&
+              context !== "preview" &&
+              linksIn(m.text).map((u) => <LinkPreview key={u} url={u} />)}
           </>
         )}
         {m.pending === "sending" && <p className="text-[12px] text-fg-subtle">送信中…</p>}

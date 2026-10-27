@@ -119,6 +119,14 @@ export interface Message {
   clientMsgId?: string;
 }
 
+export interface Unfurl {
+  url: string;
+  title: string | null;
+  description: string | null;
+  siteName: string | null;
+  image: string | null;
+}
+
 export interface Bookmark {
   id: string;
   channelId: string;
