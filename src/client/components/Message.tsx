@@ -210,7 +210,7 @@ export const MessageItem = memo(function MessageItem({
         <div
           className={cx(
             "absolute -top-4 right-5 z-10 items-center rounded-lg border border-line bg-bg-elevated p-0.5 shadow-sm",
-            menu ? "flex" : "hidden group-hover:flex",
+            menu ? "flex" : "hidden group-focus-within:flex group-hover:flex",
           )}
         >
           {isMember && !archived && (
