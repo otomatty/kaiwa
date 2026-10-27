@@ -31,6 +31,7 @@ export type Modal =
   | { kind: "shortcuts" }
   | { kind: "createWorkspace" }
   | { kind: "imagePreview"; url: string; name: string }
+  | { kind: "forward"; messageId: string }
   | {
       kind: "confirm";
       title: string;

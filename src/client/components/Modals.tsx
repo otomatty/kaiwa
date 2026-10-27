@@ -14,6 +14,7 @@ import {
   openDm,
   refreshChannel,
   reportError,
+  sendMessage,
   setChannelPrefs,
   updateChannel,
 } from "../store/actions";
@@ -63,6 +64,8 @@ function ModalSwitch({ modal }: { modal: ModalState }) {
       return <ShortcutsModal />;
     case "createWorkspace":
       return <CreateWorkspaceModal />;
+    case "forward":
+      return <ForwardModal messageId={modal.messageId} />;
     case "imagePreview":
       return (
         <Modal title={modal.name} onClose={closeModal} width={1000}>
@@ -1410,6 +1413,124 @@ function CreateWorkspaceModal() {
         placeholder="例: 株式会社サンプル"
         hint="会社やチームの名前など、メンバーが見てわかる名前にしましょう。"
       />
+    </Modal>
+  );
+}
+
+// ---------- Forward ----------
+
+function ForwardModal({ messageId }: { messageId: string }) {
+  const m = useStore((s) => s.messages[messageId]);
+  const channels = useStore((s) => s.channels);
+  const members = useStore((s) => s.members);
+  const meId = useStore((s) => s.me?.id);
+  const wid = useStore((s) => s.wid) as string;
+  const [q, setQ] = useState("");
+  const [target, setTarget] = useState<{ kind: "channel" | "user"; id: string; label: string } | null>(null);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!m) return null;
+  const query = q.toLowerCase();
+  const options = [
+    ...Object.values(channels)
+      .filter((c) => !c.archivedAt && (c.kind === "public" || c.kind === "private"))
+      .map((c) => ({ kind: "channel" as const, id: c.id, label: `#${c.name}` })),
+    ...Object.values(channels)
+      .filter((c) => c.kind === "group")
+      .map((c) => ({ kind: "channel" as const, id: c.id, label: channelLabel(c, meId) })),
+    ...Object.values(members).map((u) => ({
+      kind: "user" as const,
+      id: u.id,
+      label: u.id === meId ? `${u.displayName}（自分）` : u.displayName,
+    })),
+  ]
+    .filter((o) => o.label.toLowerCase().includes(query))
+    .slice(0, 8);
+  const submit = async () => {
+    if (!target) return;
+    setBusy(true);
+    try {
+      const cid = target.kind === "channel" ? target.id : (await api.openDm(wid, [target.id])).channel.id;
+      if (target.kind === "user") await refreshChannel(cid);
+      await sendMessage(cid, comment, {
+        shared: m.shared ?? {
+          id: m.id,
+          channelId: m.channelId,
+          channelName: get().directory[m.channelId]?.name ?? "",
+          channelKind: get().directory[m.channelId]?.kind ?? "public",
+          userId: m.userId,
+          text: m.text,
+          createdAt: m.createdAt,
+          files: m.files,
+        },
+      });
+      closeModal();
+      toast(`${target.label} に転送しました`);
+    } catch (err) {
+      reportError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="メッセージを転送"
+      onClose={closeModal}
+      width={560}
+      footer={
+        <Button variant="primary" disabled={!target || busy} onClick={() => void submit()}>
+          転送する
+        </Button>
+      }
+    >
+      {target ? (
+        <div className="mb-3 flex items-center justify-between rounded-md border border-line-strong px-3 py-2 text-[14px]">
+          <span>
+            宛先: <b>{target.label}</b>
+          </span>
+          <button type="button" className="text-link hover:underline" onClick={() => setTarget(null)}>
+            変更
+          </button>
+        </div>
+      ) : (
+        <div className="mb-3">
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="チャンネル名またはメンバー名を入力"
+            aria-label="転送先を検索"
+            className="h-10 w-full rounded-md border border-line-strong bg-bg px-3 outline-none focus:border-link"
+          />
+          <div className="mt-1 max-h-56 overflow-y-auto rounded-md border border-line" role="listbox">
+            {options.map((o) => (
+              <button
+                key={`${o.kind}-${o.id}`}
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => setTarget(o)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] hover:bg-link hover:text-white"
+              >
+                {o.kind === "user" ? <Avatar user={members[o.id]} size={18} /> : <Hash size={14} />}
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="メッセージを追加（任意）"
+        aria-label="転送時のメッセージ"
+        rows={2}
+        className="w-full resize-none rounded-md border border-line-strong bg-bg px-3 py-2 text-[15px] outline-none focus:border-link"
+      />
+      <div className="mt-3 rounded-md border border-line bg-bg-soft p-3 text-[14px]">
+        <p className="mb-1 font-bold">{members[m.userId]?.displayName}</p>
+        <p className="line-clamp-4 whitespace-pre-wrap text-fg-muted">{m.text || "（ファイル）"}</p>
+      </div>
     </Modal>
   );
 }

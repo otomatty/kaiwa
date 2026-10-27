@@ -184,6 +184,7 @@ export const MessageItem = memo(function MessageItem({
                 <MessageText text={m.text} edited={!!m.editedAt} className="text-[15px]" />
               ))}
             {m.files.length > 0 && <Attachments files={m.files} />}
+            {m.shared && <SharedCard shared={m.shared} />}
             {!m.pending &&
               context !== "preview" &&
               linksIn(m.text).map((u) => <LinkPreview key={u} url={u} />)}
@@ -320,6 +321,9 @@ function MoreMenu({
           ここから未読にする
         </MenuItem>
       )}
+      <MenuItem onClick={run(() => openModal({ kind: "forward", messageId: m.id }))}>
+        メッセージを転送…
+      </MenuItem>
       <MenuItem
         onClick={run(() => {
           const url = `${window.location.origin}/w/${wid}/c/${m.channelId}?msg=${m.id}`;
@@ -725,6 +729,45 @@ export function MessagePreview({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SharedCard({ shared }: { shared: NonNullable<Msg["shared"]> }) {
+  const author = useStore((s) => s.members[shared.userId]);
+  const wid = useStore((s) => s.wid);
+  const meId = useStore((s) => s.me?.id);
+  const where =
+    shared.channelKind === "dm" || shared.channelKind === "group"
+      ? "ダイレクトメッセージ"
+      : `#${shared.channelName}`;
+  return (
+    <div
+      className="mt-1.5 max-w-[600px] border-line-strong border-l-4 py-0.5 pl-3"
+      data-testid="shared-message"
+    >
+      <div className="flex items-center gap-1.5">
+        <Avatar user={author} size={20} />
+        <button
+          type="button"
+          onClick={() => openProfile(shared.userId)}
+          className="font-bold text-[14px] hover:underline"
+        >
+          {author?.displayName ?? (shared.userId === meId ? "あなた" : "不明なユーザー")}
+        </button>
+      </div>
+      {shared.text && <MessageText text={shared.text} className="mt-0.5 text-[15px]" />}
+      {shared.files.length > 0 && <Attachments files={shared.files} />}
+      <p className="mt-1 text-[12px] text-fg-muted">
+        {where} のメッセージ · {formatRelative(shared.createdAt)} ·{" "}
+        <button
+          type="button"
+          className="text-link hover:underline"
+          onClick={() => wid && navigate(`/w/${wid}/c/${shared.channelId}?msg=${shared.id}`)}
+        >
+          元のメッセージを表示
+        </button>
+      </p>
     </div>
   );
 }

@@ -359,6 +359,7 @@ export async function sendMessage(
     fileIds?: string[];
     files?: Message["files"];
     subtype?: "me";
+    shared?: Message["shared"];
   } = {},
 ) {
   const s = get();
@@ -387,6 +388,7 @@ export async function sendMessage(
     files: opts.files ?? [],
     pinned: false,
     saved: false,
+    shared: opts.shared ?? null,
     clientMsgId,
     pending: "sending",
   };
@@ -414,6 +416,7 @@ export async function sendMessage(
       fileIds: opts.fileIds,
       clientMsgId,
       subtype: opts.subtype,
+      sharedMessageId: opts.shared?.id,
     });
     upsertMessages([r.message], { intoChannel: true });
     if (!opts.threadRootId || opts.broadcast) {
@@ -449,6 +452,7 @@ export async function retryMessage(tmpId: string) {
     fileIds: m.files.map((f) => f.id),
     files: m.files,
     subtype: m.subtype === "me" ? "me" : undefined,
+    shared: m.shared,
   });
 }
 

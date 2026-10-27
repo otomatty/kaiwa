@@ -177,6 +177,7 @@ export const api = {
       fileIds?: string[];
       clientMsgId?: string;
       subtype?: "me";
+      sharedMessageId?: string;
     },
   ) => post<{ message: Message }>(`/channels/${cid}/messages`, b),
   editMessage: (mid: string, text: string) => patch<{ message: Message }>(`/messages/${mid}`, { text }),

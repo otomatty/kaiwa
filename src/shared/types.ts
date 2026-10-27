@@ -98,6 +98,18 @@ export type MessageSubtype =
   | "channel_unarchive"
   | "me";
 
+/** Snapshot of a forwarded message shown inside the message that shares it. */
+export interface SharedMessage {
+  id: string;
+  channelId: string;
+  channelName: string;
+  channelKind: ChannelKind;
+  userId: string;
+  text: string;
+  createdAt: number;
+  files: FileInfo[];
+}
+
 export interface Message {
   id: string;
   workspaceId: string;
@@ -117,6 +129,8 @@ export interface Message {
   files: FileInfo[];
   pinned: boolean;
   saved: boolean;
+  /** Forwarded message, if this message shares another one. */
+  shared: SharedMessage | null;
   /** Echoed back to the sender so optimistic messages can be reconciled. */
   clientMsgId?: string;
 }

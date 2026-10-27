@@ -193,3 +193,41 @@ describe("search", () => {
     expect(from.body.results).toHaveLength(0);
   });
 });
+
+describe("forwarding", () => {
+  it("shares a message into another conversation with a snapshot of the original", async () => {
+    const { owner, bob, wid, cid } = await setup();
+    const orig = (
+      await owner.post<{ message: Message }>(`/channels/${cid}/messages`, { text: "共有したい内容" })
+    ).body.message;
+    const dm = await bob.post<{ channel: { id: string } }>(`/workspaces/${wid}/dms`, {
+      userIds: [owner.user.id],
+    });
+    const fwd = await bob.post<{ message: Message }>(`/channels/${dm.body.channel.id}/messages`, {
+      text: "これ見ました？",
+      sharedMessageId: orig.id,
+    });
+    expect(fwd.status).toBe(201);
+    expect(fwd.body.message.shared).toMatchObject({
+      id: orig.id,
+      text: "共有したい内容",
+      channelName: "general",
+    });
+    const page = await owner.get<MessagePage>(`/channels/${dm.body.channel.id}/messages`);
+    expect(page.body.messages.at(-1)?.shared?.id).toBe(orig.id);
+
+    // Without a comment is fine too; but you cannot forward what you cannot read.
+    const secret = await owner.post<{ channel: { id: string } }>(`/workspaces/${wid}/channels`, {
+      name: "owners",
+      kind: "private",
+    });
+    const hidden = (
+      await owner.post<{ message: Message }>(`/channels/${secret.body.channel.id}/messages`, { text: "秘密" })
+    ).body.message;
+    const denied = await bob.post(`/channels/${dm.body.channel.id}/messages`, {
+      text: "",
+      sharedMessageId: hidden.id,
+    });
+    expect(denied.status).toBe(404);
+  });
+});

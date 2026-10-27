@@ -65,13 +65,23 @@ export async function postMessage(c: Context<AppEnv>): Promise<Response> {
     if (results.length !== body.fileIds.length) throw badRequest("添付ファイルが無効です");
   }
 
+  // Forwarding: the sender must be able to read the original.
+  let sharedFrom: string | null = null;
+  if (body.sharedMessageId) {
+    const orig = await requireMessage(db, body.sharedMessageId, me.id);
+    if (orig.message.deleted_at || (orig.message.subtype && orig.message.subtype !== "me")) {
+      throw badRequest("このメッセージは転送できません");
+    }
+    sharedFrom = orig.message.id;
+  }
+
   const members = await channelMemberIds(db, ch.id);
   const mentioned = await mentionTargets(db, body.text, ch.id, me.id, members);
   const stmts: D1PreparedStatement[] = [
     db
       .prepare(
-        `INSERT INTO messages (id, workspace_id, channel_id, user_id, text, subtype, thread_root_id, broadcast, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+        `INSERT INTO messages (id, workspace_id, channel_id, user_id, text, subtype, thread_root_id, broadcast, created_at, shared_from)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
       )
       .bind(
         id,
@@ -83,6 +93,7 @@ export async function postMessage(c: Context<AppEnv>): Promise<Response> {
         root?.id ?? null,
         root && body.broadcast ? 1 : 0,
         now,
+        sharedFrom,
       ),
   ];
   if (body.fileIds.length > 0) {

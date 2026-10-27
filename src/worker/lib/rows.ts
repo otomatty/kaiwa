@@ -8,6 +8,7 @@ import type {
   MessageSubtype,
   MyChannel,
   Role,
+  SharedMessage,
   User,
   Workspace,
 } from "../../shared/types";
@@ -67,6 +68,7 @@ export interface MessageRow {
   created_at: number;
   edited_at: number | null;
   deleted_at: number | null;
+  shared_from?: string | null;
 }
 
 export interface FileRow {
@@ -208,6 +210,7 @@ function baseMessage(r: MessageRow): Message {
     files: [],
     pinned: false,
     saved: false,
+    shared: null,
   };
 }
 
@@ -283,6 +286,47 @@ export async function hydrateMessages(
     for (const u of (replyUsers?.results ?? []) as { thread_root_id: string; user_id: string }[]) {
       const m = byId.get(u.thread_root_id);
       if (m && m.replyUserIds.length < 5) m.replyUserIds.push(u.user_id);
+    }
+  }
+
+  // Forwarded messages: attach a snapshot of the original.
+  const sharedIds = [...new Set(rows.map((r) => r.shared_from).filter((x): x is string => !!x))];
+  for (const ids of chunk(sharedIds, 80)) {
+    const [orig, origFiles] = await db.batch([
+      db
+        .prepare(
+          `SELECT m.*, c.name AS c_name, c.kind AS c_kind FROM messages m JOIN channels c ON c.id = m.channel_id
+           WHERE m.id IN (${placeholders(ids.length)}) AND m.deleted_at IS NULL`,
+        )
+        .bind(...ids),
+      db.prepare(`SELECT * FROM files WHERE message_id IN (${placeholders(ids.length)})`).bind(...ids),
+    ]);
+    const files = new Map<string, FileInfo[]>();
+    for (const f of (origFiles?.results ?? []) as unknown as FileRow[]) {
+      if (f.message_id) files.set(f.message_id, [...(files.get(f.message_id) ?? []), toFile(f)]);
+    }
+    const snapshots = new Map<string, SharedMessage>();
+    for (const o of (orig?.results ?? []) as unknown as (MessageRow & {
+      c_name: string;
+      c_kind: ChannelKind;
+    })[]) {
+      snapshots.set(o.id, {
+        id: o.id,
+        channelId: o.channel_id,
+        channelName: o.c_name,
+        channelKind: o.c_kind,
+        userId: o.user_id,
+        text: o.text,
+        createdAt: o.created_at,
+        files: files.get(o.id) ?? [],
+      });
+    }
+    for (const r of rows) {
+      if (r.shared_from) {
+        const m = byId.get(r.id);
+        const snap = snapshots.get(r.shared_from);
+        if (m && snap) m.shared = snap;
+      }
     }
   }
   return messages;

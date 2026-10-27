@@ -110,8 +110,9 @@ export const postMessageSchema = z
     fileIds: z.array(z.string()).max(LIMITS.filesPerMessage).default([]),
     clientMsgId: z.string().max(64).optional(),
     subtype: z.enum(["me"]).optional(),
+    sharedMessageId: z.string().max(64).optional(),
   })
-  .refine((v) => v.text.trim().length > 0 || v.fileIds.length > 0, {
+  .refine((v) => v.text.trim().length > 0 || v.fileIds.length > 0 || !!v.sharedMessageId, {
     message: "メッセージが空です",
   });
 
