@@ -4,6 +4,7 @@
 //          <@USERID>  <#CHANNELID>  <!here> <!channel> <!everyone>
 //          <https://url|label>  bare URLs  :emoji_name:
 // Blocks:  ```code blocks```   > quotes   - bullet lists   1. ordered lists
+// Escapes: \\* \\_ \\~ \\` \\\\ show the character literally.
 //
 // Emphasis markers must sit on a "word boundary": the opening marker must not be
 // preceded by an ASCII letter/digit and the closing marker must not be followed
@@ -97,6 +98,13 @@ export function parseInline(s: string): Inline[] {
       flush();
       out.push({ t: "br" });
       i++;
+      continue;
+    }
+
+    // Backslash escapes: \* \_ \~ \` \\ \: render the next character literally.
+    if (ch === "\\" && "*_~`\\:<".includes(s[i + 1] ?? "\n")) {
+      buf += s[i + 1];
+      i += 2;
       continue;
     }
 

@@ -133,6 +133,7 @@ export interface MyChannelRow extends ChannelRow {
   unread_count: number;
   mention_count: number;
   latest_at: number | null;
+  latest_preview?: string | null;
   starred: number;
   muted: number;
   hidden: number;
@@ -146,6 +147,7 @@ export function toMyChannel(r: MyChannelRow, memberIds: string[]): MyChannel {
     unreadCount: r.unread_count,
     mentionCount: r.mention_count,
     latestAt: r.latest_at,
+    latestPreview: r.latest_preview ? (JSON.parse(r.latest_preview) as MyChannel["latestPreview"]) : null,
     starred: r.starred === 1,
     muted: r.muted === 1,
     hidden: r.hidden === 1,

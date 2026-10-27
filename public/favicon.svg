@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Kaiwa</title>
+  <rect width="64" height="64" rx="14" fill="#1f3a3d"/>
+  <path d="M15 20c0-4 3-7 7-7h20c4 0 7 3 7 7v14c0 4-3 7-7 7H30l-9 8v-8h1c-4 0-7-3-7-7z" fill="#f2c14e"/>
+  <circle cx="25" cy="27" r="2.6" fill="#1f3a3d"/>
+  <circle cx="32" cy="27" r="2.6" fill="#1f3a3d"/>
+  <circle cx="39" cy="27" r="2.6" fill="#1f3a3d"/>
+</svg>

@@ -29,6 +29,8 @@ describe("channels", () => {
     expect((await bob.post(`/channels/${cid}/messages`, { text: "hi" })).status).toBe(403);
 
     expect((await bob.post(`/channels/${cid}/join`)).status).toBe(200);
+    // Join notices are shown but never count as unread.
+    expect((await owner.channel(wid, "design-team")).unreadCount).toBe(0);
     expect((await bob.post(`/channels/${cid}/messages`, { text: "hi" })).status).toBe(201);
 
     const page = await owner.get<MessagePage>(`/channels/${cid}/messages`);

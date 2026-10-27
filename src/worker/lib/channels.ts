@@ -8,12 +8,16 @@ SELECT c.*, cm.last_read_at, cm.starred, cm.muted, cm.hidden,
   (SELECT COUNT(*) FROM channel_members x WHERE x.channel_id = c.id) AS member_count,
   (SELECT COUNT(*) FROM messages m
      WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1)
-       AND m.created_at > cm.last_read_at AND m.user_id != ?1 AND m.deleted_at IS NULL) AS unread_count,
+       AND m.created_at > cm.last_read_at AND m.user_id != ?1 AND m.deleted_at IS NULL
+       AND (m.subtype IS NULL OR m.subtype = 'me')) AS unread_count,
   (SELECT COUNT(*) FROM mentions mn JOIN messages m ON m.id = mn.message_id
      WHERE mn.channel_id = c.id AND mn.user_id = ?1 AND mn.created_at > cm.last_read_at
        AND (m.thread_root_id IS NULL OR m.broadcast = 1)) AS mention_count,
   (SELECT MAX(m.created_at) FROM messages m
-     WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1) AND m.deleted_at IS NULL) AS latest_at
+     WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1) AND m.deleted_at IS NULL) AS latest_at,
+  CASE WHEN c.kind IN ('dm', 'group') THEN (SELECT json_object('userId', m.user_id, 'text', substr(m.text, 1, 200), 'files', (SELECT COUNT(*) FROM files f WHERE f.message_id = m.id))
+     FROM messages m WHERE m.channel_id = c.id AND (m.thread_root_id IS NULL OR m.broadcast = 1) AND m.deleted_at IS NULL
+     ORDER BY m.created_at DESC LIMIT 1) END AS latest_preview
 FROM channel_members cm JOIN channels c ON c.id = cm.channel_id
 WHERE cm.user_id = ?1`;
 

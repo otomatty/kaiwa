@@ -62,6 +62,8 @@ export interface MyChannel extends Channel {
   unreadCount: number;
   mentionCount: number;
   latestAt: number | null;
+  /** Latest message preview (DMs only). */
+  latestPreview?: { userId: string; text: string; files: number } | null;
   starred: boolean;
   muted: boolean;
   hidden: boolean;

@@ -77,6 +77,12 @@ describe("parseInline", () => {
     ]);
   });
 
+  it("supports backslash escapes", () => {
+    expect(parseInline("\\*not bold\\* and ¯\\\\\\_(ツ)\\_/¯")).toEqual([
+      { t: "text", v: "*not bold* and ¯\\_(ツ)_/¯" },
+    ]);
+  });
+
   it("parses emoji shortcodes", () => {
     expect(parseInline("ok :thumbsup: :+1:")).toEqual([
       { t: "text", v: "ok " },

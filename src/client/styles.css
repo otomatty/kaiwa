@@ -1,1 +1,220 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Kaiwa palette: teal-ink sidebar (藍), yamabuki highlight (山吹), vermilion badges (朱). */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f5f7f7;
+  --bg-muted: #ebf0f0;
+  --bg-elevated: #ffffff;
+  --fg: #1d2526;
+  --fg-muted: #586567;
+  --fg-subtle: #87969a;
+  --border: #dfe5e5;
+  --border-strong: #c3cdce;
+  --primary: #1f6f6c;
+  --primary-hover: #185c59;
+  --primary-fg: #ffffff;
+  --link: #1a6aa0;
+  --danger: #c23a2b;
+  --sidebar: #1f3a3d;
+  --sidebar-fg: #c3d3d3;
+  --sidebar-fg-strong: #ffffff;
+  --sidebar-hover: rgb(255 255 255 / 0.08);
+  --sidebar-active: #f2c14e;
+  --sidebar-active-fg: #1c2a2b;
+  --rail: #16302f;
+  --badge: #d9442e;
+  --online: #3aa864;
+  --mention-bg: #fbefc6;
+  --mention-fg: #7a4f00;
+  --mention-me-bg: #fff6d9;
+  --highlight: #fff3cc;
+  --code-fg: #b23d2b;
+  --code-bg: #f4f6f6;
+  --shadow: 0 1px 2px rgb(16 24 24 / 0.06), 0 8px 24px rgb(16 24 24 / 0.12);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #161e1f;
+  --bg-soft: #1d2829;
+  --bg-muted: #233132;
+  --bg-elevated: #1f2b2c;
+  --fg: #e1e9e9;
+  --fg-muted: #a2b3b4;
+  --fg-subtle: #758789;
+  --border: #2b3a3b;
+  --border-strong: #3c4e50;
+  --primary: #2b8a85;
+  --primary-hover: #33a099;
+  --link: #6db3e3;
+  --danger: #ef6a58;
+  --sidebar: #102325;
+  --sidebar-fg: #a9bcbc;
+  --sidebar-hover: rgb(255 255 255 / 0.06);
+  --rail: #0b1819;
+  --mention-bg: rgb(242 193 78 / 0.18);
+  --mention-fg: #f2c86a;
+  --mention-me-bg: rgb(242 193 78 / 0.08);
+  --highlight: rgb(242 193 78 / 0.14);
+  --code-fg: #f08a73;
+  --code-bg: #212d2e;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-bg-muted: var(--bg-muted);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-strong: var(--sidebar-fg-strong);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-rail: var(--rail);
+  --color-badge: var(--badge);
+  --color-online: var(--online);
+  --color-mention: var(--mention-bg);
+  --color-mention-fg: var(--mention-fg);
+  --color-mention-me: var(--mention-me-bg);
+  --color-highlight: var(--highlight);
+  --color-code: var(--code-fg);
+  --color-code-bg: var(--code-bg);
+  --shadow-pop: var(--shadow);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono CJK JP", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.46668;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+}
+
+/* Message body typography */
+.msg-text {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.msg-text p {
+  margin: 0;
+}
+.msg-text pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg-text code {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.msg-text blockquote {
+  margin: 2px 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--border-strong);
+  color: var(--fg-muted);
+}
+.msg-text ul,
+.msg-text ol {
+  margin: 2px 0;
+  padding-left: 26px;
+}
+.msg-text ul {
+  list-style: disc;
+}
+.msg-text ol {
+  list-style: decimal;
+}
+.msg-text a {
+  color: var(--link);
+}
+.msg-text a:hover {
+  text-decoration: underline;
+}
+
+.jump-highlight {
+  animation: jump-flash 2.4s ease-out;
+}
+@keyframes jump-flash {
+  0%,
+  40% {
+    background: var(--highlight);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* biome-ignore-start lint/complexity/noImportantStyles: reduced-motion override must win */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: reduced-motion override must win */
