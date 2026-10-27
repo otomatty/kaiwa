@@ -49,6 +49,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     data = null;
   }
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith("/auth/")) {
+      // Session expired or signed out elsewhere.
+      window.dispatchEvent(new Event("kaiwa:unauthorized"));
+    }
     const err = (data ?? {}) as { error?: string; message?: string };
     throw new ApiError(
       res.status,

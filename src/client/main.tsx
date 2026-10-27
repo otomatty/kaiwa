@@ -43,6 +43,14 @@ function App() {
 
   useEffect(() => {
     void loadSession();
+    const onUnauthorized = () => {
+      if (!useStore.getState().me) return;
+      useStore.setState({ me: null, workspaces: [] });
+      const here = window.location.pathname + window.location.search;
+      navigate(`/login?next=${encodeURIComponent(here)}`, { replace: true });
+    };
+    window.addEventListener("kaiwa:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("kaiwa:unauthorized", onUnauthorized);
   }, []);
 
   const invite = match("/invite/:code", path);
