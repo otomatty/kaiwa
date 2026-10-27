@@ -25,8 +25,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { LIMITS } from "../../shared/limits";
 import type { FileInfo } from "../../shared/types";
-import { LIMITS } from "../../shared/validation";
 import { api, uploadFile } from "../lib/api";
 import {
   type ActiveToken,

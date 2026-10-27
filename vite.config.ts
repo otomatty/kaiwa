@@ -9,7 +9,22 @@ export default defineConfig({
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,
   },
-  build: {
-    chunkSizeWarningLimit: 900,
+  environments: {
+    client: {
+      build: {
+        chunkSizeWarningLimit: 600,
+        rolldownOptions: {
+          output: {
+            // Long-lived caching: libraries and the emoji table change less often than app code.
+            codeSplitting: {
+              groups: [
+                { name: "emoji", test: /emoji-data\.json/ },
+                { name: "vendor", test: /node_modules/ },
+              ],
+            },
+          },
+        },
+      },
+    },
   },
 });

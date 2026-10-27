@@ -1,7 +1,7 @@
 import { Check, Copy, Hash, Lock, Search, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { channelNameError, normalizeChannelName } from "../../shared/limits";
 import type { Member, MyChannel } from "../../shared/types";
-import { channelNameError, normalizeChannelName } from "../../shared/validation";
 import { api, uploadFile } from "../lib/api";
 import { formatRelative } from "../lib/format";
 import { navigate, routes } from "../lib/router";
