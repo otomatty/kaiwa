@@ -18,6 +18,7 @@ import {
   PeopleView,
   SearchView,
   ThreadsView,
+  UnreadsView,
 } from "./Views";
 
 export function WorkspaceShell({ wid }: { wid: string }) {
@@ -92,6 +93,7 @@ export function WorkspaceShell({ wid }: { wid: string }) {
   let main: React.ReactNode;
   if (cid) main = <ChannelView channelId={cid} />;
   else if (view === "threads") main = <ThreadsView />;
+  else if (view === "unreads") main = <UnreadsView />;
   else if (view === "activity") main = <ActivityView />;
   else if (view === "drafts") main = <DraftsView />;
   else if (view === "files") main = <FilesView />;

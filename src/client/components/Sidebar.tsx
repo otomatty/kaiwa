@@ -8,6 +8,7 @@ import {
   FileText,
   Hash,
   House,
+  Inbox,
   Lock,
   MessageSquareText,
   MessagesSquare,
@@ -465,6 +466,7 @@ function HomeList() {
   const meId = useStore((s) => s.me?.id);
 
   const all = Object.values(channels);
+  const totalUnread = all.filter((c) => c.unreadCount > 0 && !c.muted && !c.hidden).length;
   const starred = all.filter((c) => c.starred && !c.hidden).sort(byLabel(meId));
   const chans = all
     .filter((c) => !c.starred && (c.kind === "public" || c.kind === "private"))
@@ -480,6 +482,14 @@ function HomeList() {
 
   return (
     <div className="py-3">
+      <NavItem
+        icon={<Inbox size={16} />}
+        label="すべての未読"
+        bold={totalUnread > 0}
+        badge={undefined}
+        active={path.endsWith("/unreads")}
+        onClick={() => go("unreads")}
+      />
       <NavItem
         icon={<MessageSquareText size={16} />}
         label="スレッド"

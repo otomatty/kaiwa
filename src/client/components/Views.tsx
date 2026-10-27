@@ -1,10 +1,21 @@
-import { AtSign, FileText, Hash, MessageSquareText, Pencil, Search, Trash2, Users } from "lucide-react";
+import {
+  AtSign,
+  CheckCheck,
+  FileText,
+  Hash,
+  Inbox,
+  MessageSquareText,
+  Pencil,
+  Search,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { FileInfo, SearchResult, ThreadSummary } from "../../shared/types";
 import { api } from "../lib/api";
 import { formatBytes, formatRelative } from "../lib/format";
 import { navigate, routes, useSearchParams } from "../lib/router";
-import { openProfile, openThread, reportError, upsertMessages } from "../store/actions";
+import { markChannelRead, openProfile, openThread, reportError, upsertMessages } from "../store/actions";
 import { channelLabel, get, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
 import { ActivityList, SavedList } from "./Lists";
@@ -564,6 +575,104 @@ export function EmptyDmView() {
       <Button variant="primary" className="mt-2" onClick={() => set({ modal: { kind: "newMessage" } })}>
         新規メッセージ
       </Button>
+    </div>
+  );
+}
+
+/** "All unreads": every conversation with unread messages, newest conversations first. */
+export function UnreadsView() {
+  const wid = useStore((s) => s.wid) as string;
+  const meId = useStore((s) => s.me?.id);
+  const channels = useStore((s) => s.channels);
+  const unread = Object.values(channels)
+    .filter((c) => c.unreadCount > 0 && !c.hidden)
+    .sort((a, b) => (b.latestAt ?? 0) - (a.latestAt ?? 0));
+  const [loaded, setLoaded] = useState<Record<string, { key: string; ids: string[] }>>({});
+  const channelKey = (c: (typeof unread)[number]) => `${c.lastReadAt}:${c.unreadCount}`;
+  const key = unread.map((c) => `${c.id}:${channelKey(c)}`).join(",");
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch when the unread set changes
+  useEffect(() => {
+    let alive = true;
+    for (const c of unread) {
+      if (loaded[c.id]?.key === channelKey(c)) continue;
+      api
+        .messages(c.id, { limit: 50 })
+        .then((page) => {
+          if (!alive) return;
+          upsertMessages(page.messages);
+          const ids = page.messages
+            .filter(
+              (m) => m.createdAt > c.lastReadAt && m.userId !== meId && (!m.subtype || m.subtype === "me"),
+            )
+            .map((m) => m.id);
+          setLoaded((l) => ({ ...l, [c.id]: { key: channelKey(c), ids } }));
+        })
+        .catch(reportError);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+
+  const markAll = () => {
+    for (const c of unread) markChannelRead(c.id, Math.max(Date.now(), c.latestAt ?? 0));
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ViewHeader icon={<Inbox size={18} />} title="すべての未読">
+        {unread.length > 0 && (
+          <Button className="h-8 text-[13px]" onClick={markAll}>
+            <CheckCheck size={15} /> すべて既読にする
+          </Button>
+        )}
+      </ViewHeader>
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto bg-bg-soft">
+        <div className="mx-auto max-w-[860px] space-y-4 p-5">
+          {unread.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center text-fg-muted">
+              <CheckCheck size={34} />
+              <p className="font-bold text-[17px] text-fg">未読はありません</p>
+              <p>すべてのメッセージを確認しました。</p>
+            </div>
+          ) : (
+            unread.map((c) => (
+              <section key={c.id} className="overflow-hidden rounded-lg border border-line bg-bg">
+                <div className="flex items-center justify-between gap-3 border-line border-b px-5 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => navigate(routes.channel(wid, c.id))}
+                    className="flex items-center gap-1 font-bold text-[15px] hover:underline"
+                  >
+                    {c.kind === "dm" || c.kind === "group" ? channelLabel(c, meId) : `#${c.name}`}
+                    <span className="ml-1 rounded-full bg-bg-muted px-2 font-normal text-[12px] text-fg-muted">
+                      {c.unreadCount}件
+                    </span>
+                  </button>
+                  <Button
+                    className="h-7 text-[12px]"
+                    onClick={() => markChannelRead(c.id, Math.max(Date.now(), c.latestAt ?? 0))}
+                  >
+                    既読にする
+                  </Button>
+                </div>
+                {!loaded[c.id] ? (
+                  <div className="flex justify-center p-4">
+                    <Spinner />
+                  </div>
+                ) : (
+                  <div className="py-1">
+                    {loaded[c.id]?.ids.map((id) => (
+                      <MessageItem key={id} id={id} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
