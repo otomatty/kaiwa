@@ -1708,6 +1708,25 @@ export function useGlobalShortcuts() {
     const onKey = (e: KeyboardEvent) => {
       const s = get();
       if (!s.wid) return;
+      // Typing while nothing is focused goes to the message box.
+      const active = document.activeElement;
+      const editing =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement ||
+        (active instanceof HTMLElement && active.isContentEditable);
+      if (
+        !editing &&
+        !s.modal &&
+        e.key.length === 1 &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.isComposing
+      ) {
+        window.dispatchEvent(new Event("kaiwa:focus-composer"));
+        return;
+      }
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (mod && !e.shiftKey && key === "k") {
