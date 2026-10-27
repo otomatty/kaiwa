@@ -28,3 +28,12 @@ describe("format", () => {
     expect(initials("")).toBe("?");
   });
 });
+
+describe("emoji search", () => {
+  it("ranks exact names first and supports Japanese keywords", async () => {
+    const { searchEmoji } = await import("./emoji");
+    expect(searchEmoji("heart")[0]?.char).toBe("❤️");
+    expect(searchEmoji("ハート").map((e) => e.char)).toContain("❤️");
+    expect(searchEmoji("お祝い").map((e) => e.char)).toContain("🎉");
+  });
+});

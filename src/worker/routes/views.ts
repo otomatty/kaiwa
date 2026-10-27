@@ -35,7 +35,11 @@ viewRoutes.get("/:wid/search", async (c) => {
   const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
   const limit = 30;
 
-  const terms = q.split(/\s+/).filter(Boolean).slice(0, 8);
+  // Quoted phrases ("会議 資料") stay together; everything else splits on whitespace.
+  const terms = [...q.matchAll(/"([^"]+)"|(\S+)/g)]
+    .map((m) => (m[1] ?? m[2] ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
   if (terms.length === 0 && !channelId && !userId) return c.json({ results: [], total: 0, hasMore: false });
 
   const where: string[] = [

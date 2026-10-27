@@ -74,6 +74,7 @@ export async function bootWorkspace(wid: string) {
                 topic: c.topic,
                 description: c.description,
                 isDefault: false,
+                isRequired: c.isRequired,
                 createdBy: "",
                 createdAt: c.createdAt,
                 archivedAt: c.archivedAt,
@@ -686,8 +687,7 @@ export function goToDefaultChannel() {
   const s = get();
   if (!s.wid) return;
   const chans = Object.values(s.channels);
-  const general =
-    chans.find((c) => c.isDefault && c.name === "general") ?? chans.find((c) => c.kind === "public");
+  const general = chans.find((c) => c.isRequired) ?? chans.find((c) => c.kind === "public");
   if (general) navigate(routes.channel(s.wid, general.id), { replace: true });
 }
 
@@ -715,7 +715,7 @@ export async function joinChannel(cid: string) {
   }
 }
 
-export async function leaveChannel(cid: string) {
+export async function leaveChannel(cid: string): Promise<boolean> {
   const ch = get().channels[cid];
   try {
     await api.leaveChannel(cid);
@@ -729,8 +729,10 @@ export async function leaveChannel(cid: string) {
       if (currentChannelId() === cid) goToDefaultChannel();
     }
     toast(`#${ch?.name ?? ""} から退出しました`);
+    return true;
   } catch (err) {
     reportError(err);
+    return false;
   }
 }
 

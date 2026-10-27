@@ -147,14 +147,16 @@ function renderInline(nodes: Inline[], jumbo: boolean): ReactNode[] {
   });
 }
 
-function renderBlocks(blocks: Block[], jumbo: boolean): ReactNode[] {
+function renderBlocks(blocks: Block[], jumbo: boolean, tail?: ReactNode): ReactNode[] {
   return blocks.map((b, i) => {
     const key = i;
+    const last = i === blocks.length - 1;
     switch (b.t) {
       case "p":
         return (
           <p key={key} className={jumbo ? "text-[32px] leading-[1.25]" : undefined}>
             {renderInline(b.c, jumbo)}
+            {last && tail}
           </p>
         );
       case "pre":
@@ -195,10 +197,13 @@ export const MessageText = memo(function MessageText({
 }) {
   const blocks = parse(text);
   const jumbo = isJumboEmoji(blocks);
+  const marker = edited ? <span className="ml-1 text-[12px] text-fg-subtle">（編集済み）</span> : null;
+  // The "(edited)" marker sits inline after the text when the message ends with a paragraph.
+  const inline = blocks.at(-1)?.t === "p";
   return (
     <div className={cx("msg-text", className)}>
-      {renderBlocks(blocks, jumbo)}
-      {edited && <span className="ml-1 text-[12px] text-fg-subtle">（編集済み）</span>}
+      {renderBlocks(blocks, jumbo, inline ? marker : undefined)}
+      {!inline && marker}
     </div>
   );
 });

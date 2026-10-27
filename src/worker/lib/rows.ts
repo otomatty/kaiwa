@@ -48,6 +48,7 @@ export interface ChannelRow {
   topic: string;
   description: string;
   is_default: number;
+  is_required: number;
   dm_key: string | null;
   created_by: string;
   created_at: number;
@@ -123,6 +124,7 @@ export function toChannel(r: ChannelRow & { member_count?: number }, memberIds: 
     topic: r.topic,
     description: r.description,
     isDefault: r.is_default === 1,
+    isRequired: r.is_required === 1,
     createdBy: r.created_by,
     createdAt: r.created_at,
     archivedAt: r.archived_at,

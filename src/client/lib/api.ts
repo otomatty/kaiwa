@@ -136,6 +136,8 @@ export const api = {
         description: string;
         memberCount: number;
         isMember: boolean;
+        isDefault: boolean;
+        isRequired: boolean;
         archivedAt: number | null;
         createdAt: number;
       }[];

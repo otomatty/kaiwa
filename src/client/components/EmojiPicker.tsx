@@ -70,7 +70,7 @@ export function EmojiPicker({
                 pick(results[0]);
               }
             }}
-            placeholder="絵文字を検索（英語名）"
+            placeholder="絵文字を検索（例: smile、ハート）"
             className="w-full bg-transparent text-[14px] outline-none"
           />
         </div>

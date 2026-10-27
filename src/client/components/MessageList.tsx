@@ -97,6 +97,11 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
+  const measureBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }, []);
+
   // Keep position when older messages are prepended; stick to bottom for new ones.
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -123,32 +128,40 @@ export function MessageList({ channel }: { channel: MyChannel }) {
       scrollToBottom();
     }
     prevFirst.current = { id: first, height: el.scrollHeight };
+    // Short conversations never scroll, so derive "at bottom" from geometry too.
+    measureBottom();
   });
 
   // Images and embeds change height after load: keep pinned to the bottom.
   useEffect(() => {
     const inner = innerRef.current;
     if (!inner) return;
+    const el = scrollRef.current;
     const ro = new ResizeObserver(() => {
       if (atBottom.current && !get().channelMsgs[cid]?.hasMoreAfter) scrollToBottom();
-      const el = scrollRef.current;
       if (el) prevFirst.current.height = el.scrollHeight;
+      measureBottom();
+      tryMarkReadRef.current();
     });
     ro.observe(inner);
+    if (el) ro.observe(el);
     return () => ro.disconnect();
-  }, [cid, scrollToBottom]);
+  }, [cid, scrollToBottom, measureBottom]);
 
   // Mark as read while the bottom of the conversation is visible.
   const tryMarkRead = useCallback(() => {
     const s = get();
     const cm = s.channelMsgs[cid];
+    measureBottom();
     if (!cm?.loaded || cm.hasMoreAfter || !atBottom.current) return;
     if (document.visibilityState !== "visible" || !document.hasFocus()) return;
     if (isAutoReadSuppressed(cid)) return;
     const lastId = [...cm.ids].reverse().find((id) => !id.startsWith("tmp-"));
     const last = lastId ? s.messages[lastId] : undefined;
     if (last) markChannelRead(cid, last.createdAt);
-  }, [cid]);
+  }, [cid, measureBottom]);
+  const tryMarkReadRef = useRef(tryMarkRead);
+  tryMarkReadRef.current = tryMarkRead;
 
   useEffect(() => {
     tryMarkRead();

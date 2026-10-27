@@ -364,3 +364,16 @@ export function InvitePage({ code }: { code: string }) {
     </AuthLayout>
   );
 }
+
+export function NotFoundPage() {
+  return (
+    <AuthLayout
+      title="ページが見つかりません"
+      subtitle="URL が間違っているか、ページが移動した可能性があります。"
+    >
+      <Button variant="primary" className="h-11 w-full" onClick={() => navigate("/")}>
+        ホームに戻る
+      </Button>
+    </AuthLayout>
+  );
+}

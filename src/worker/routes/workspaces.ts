@@ -105,8 +105,8 @@ workspaceRoutes.post("/", async (c) => {
       .bind(wid, me.id, now),
     db
       .prepare(
-        `INSERT INTO channels (id, workspace_id, kind, name, description, is_default, created_by, created_at)
-         VALUES (?1, ?2, 'public', 'general', ?3, 1, ?4, ?5)`,
+        `INSERT INTO channels (id, workspace_id, kind, name, description, is_default, is_required, created_by, created_at)
+         VALUES (?1, ?2, 'public', 'general', ?3, 1, 1, ?4, ?5)`,
       )
       .bind(
         general.id,

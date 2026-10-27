@@ -41,7 +41,10 @@ export function TopBar() {
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me?.id);
 
-  useEffect(() => setQ(currentQ), [currentQ]);
+  // Keep the last query visible after opening a result (like other chat apps); update it when searching anew.
+  useEffect(() => {
+    if (currentQ) setQ(currentQ);
+  }, [currentQ]);
 
   useEffect(() => {
     if (!open) return;

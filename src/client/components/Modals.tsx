@@ -262,11 +262,12 @@ function BrowseChannelsModal() {
                 </p>
               </button>
               {!c.archivedAt &&
+                !c.isRequired &&
                 (c.isMember ? (
                   <Button
                     className="mr-2 hidden h-8 group-hover:inline-flex"
                     onClick={async () => {
-                      await leaveChannel(c.id);
+                      if (!(await leaveChannel(c.id))) return;
                       setList(
                         (l) =>
                           l?.map((x) =>
@@ -581,15 +582,15 @@ function ChannelDetailsModal({
   return (
     <Modal title={title} onClose={closeModal} width={640} bodyClassName="px-0 pb-0">
       {ch.isMember && (
-        <div className="flex gap-2 px-7 pb-3">
+        <div className="flex flex-wrap gap-2 px-7 pb-3">
           <Button
-            className="h-8 text-[13px]"
+            className="h-8 whitespace-nowrap text-[13px]"
             onClick={() => setChannelPrefs(channelId, { starred: !ch.starred })}
           >
             {ch.starred ? "★ スター付き" : "☆ スターを付ける"}
           </Button>
           <Button
-            className="h-8 text-[13px]"
+            className="h-8 whitespace-nowrap text-[13px]"
             onClick={() => setChannelPrefs(channelId, { muted: !ch.muted })}
           >
             {ch.muted ? "ミュートを解除" : "ミュートする"}
@@ -625,7 +626,7 @@ function ChannelDetailsModal({
                   value={`#${ch.name}`}
                   rawValue={ch.name}
                   editing={editing === "name"}
-                  canEdit={ch.isMember && !ch.archivedAt && (!ch.isDefault || isAdmin)}
+                  canEdit={ch.isMember && !ch.archivedAt && (!ch.isRequired || isAdmin)}
                   onEdit={() => setEditing("name")}
                   onCancel={() => setEditing(null)}
                   onSave={(v) => save({ name: v })}
@@ -659,7 +660,7 @@ function ChannelDetailsModal({
                 {new Date(ch.createdAt).toLocaleDateString("ja-JP")}）
               </p>
             </div>
-            {!isDm && ch.isMember && !ch.isDefault && (
+            {!isDm && ch.isMember && !ch.isRequired && (
               <button
                 type="button"
                 onClick={() => {
@@ -728,7 +729,7 @@ function ChannelDetailsModal({
                   <MemberRow
                     key={m.id}
                     member={m}
-                    canRemove={!isDm && !ch.isDefault && canManage && m.id !== meId}
+                    canRemove={!isDm && !ch.isRequired && canManage && m.id !== meId}
                     onRemove={async () => {
                       try {
                         await api.removeChannelMember(channelId, m.id);
@@ -744,7 +745,7 @@ function ChannelDetailsModal({
         )}
         {tab === "settings" && (
           <div className="space-y-3">
-            {canManage && !ch.isDefault && (
+            {canManage && !ch.isRequired && (
               <button
                 type="button"
                 onClick={async () => {
@@ -769,7 +770,7 @@ function ChannelDetailsModal({
                 </p>
               </button>
             )}
-            {isAdmin && !ch.isDefault && (
+            {isAdmin && !ch.isRequired && (
               <button
                 type="button"
                 onClick={() =>
@@ -802,7 +803,7 @@ function ChannelDetailsModal({
                 このチャンネルの設定を変更できるのは作成者と管理者のみです。
               </p>
             )}
-            {ch.isDefault && (
+            {ch.isRequired && (
               <p className="text-[14px] text-fg-muted">
                 #{ch.name} は全員が参加する既定のチャンネルのため、アーカイブや削除はできません。
               </p>

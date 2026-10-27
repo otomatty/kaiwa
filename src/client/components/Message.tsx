@@ -525,9 +525,11 @@ function BroadcastLabel({ rootId }: { rootId: string }) {
       className="mb-0.5 block max-w-full truncate text-left text-[13px] text-fg-muted hover:underline"
     >
       スレッドに返信しました
-      {root && !root.deletedAt && (
+      {root?.deletedAt ? (
+        <span className="text-fg-subtle">: このメッセージは削除されました</span>
+      ) : root ? (
         <span className="text-fg-subtle">: {root.text.replace(/<[^>]+>/g, "").slice(0, 60)}</span>
-      )}
+      ) : null}
     </button>
   );
 }

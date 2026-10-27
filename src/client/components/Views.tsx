@@ -15,6 +15,7 @@ import type { FileInfo, SearchResult, ThreadSummary } from "../../shared/types";
 import { api } from "../lib/api";
 import { formatBytes, formatRelative } from "../lib/format";
 import { navigate, routes, useSearchParams } from "../lib/router";
+import { parseSearchQuery, searchTerms } from "../lib/search";
 import { markChannelRead, openProfile, openThread, reportError, upsertMessages } from "../store/actions";
 import { channelLabel, get, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
@@ -386,25 +387,6 @@ export function FilesView() {
   );
 }
 
-/** Parses "in:#channel from:@name" modifiers out of a search query. */
-function parseQuery(raw: string) {
-  const s = get();
-  let text = raw;
-  let channel: string | undefined;
-  let user: string | undefined;
-  text = text.replace(/(?:^|\s)in:#?(\S+)/, (_, name: string) => {
-    const ch = Object.values(s.directory).find((c) => c.name === name);
-    if (ch) channel = ch.id;
-    return " ";
-  });
-  text = text.replace(/(?:^|\s)from:@?(\S+)/, (_, name: string) => {
-    const m = Object.values(s.members).find((x) => x.displayName === name);
-    if (m) user = m.id;
-    return " ";
-  });
-  return { text: text.trim(), channel, user };
-}
-
 export function SearchView() {
   const wid = useStore((s) => s.wid) as string;
   const params = useSearchParams();
@@ -418,10 +400,31 @@ export function SearchView() {
   const channels = useStore((s) => s.directory);
   const members = useStore((s) => s.members);
   const meId = useStore((s) => s.me?.id);
-  const parsed = useMemo(() => parseQuery(q), [q]);
+  const parsed = useMemo(() => {
+    const s = get();
+    return parseSearchQuery(
+      q,
+      Object.values(s.members).map((m) => ({ id: m.id, name: m.displayName })),
+      Object.values(s.directory)
+        .filter((c) => c.kind === "public" || c.kind === "private")
+        .map((c) => ({ id: c.id, name: c.name })),
+    );
+  }, [q]);
+
+  // A new query starts from a clean set of filters.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the query changes
+  useEffect(() => {
+    setChannelFilter("");
+    setUserFilter("");
+  }, [q]);
 
   useEffect(() => {
     setResults(null);
+    if (parsed.unknown) {
+      setResults([]);
+      setHasMore(false);
+      return;
+    }
     let cancelled = false;
     api
       .search(wid, {
@@ -522,6 +525,13 @@ export function SearchView() {
             <div className="flex flex-col items-center gap-2 py-16 text-center text-fg-muted">
               <Search size={30} />
               <p className="font-bold text-[17px] text-fg">一致するメッセージは見つかりませんでした</p>
+              {parsed.unknown && (
+                <p className="text-danger">
+                  {parsed.unknown.kind === "from"
+                    ? `「${parsed.unknown.name}」というメンバーは見つかりません。`
+                    : `「${parsed.unknown.name}」というチャンネルは見つかりません。`}
+                </p>
+              )}
               <p>
                 別のキーワードを試すか、絞り込みを解除してください。in:#チャンネル名 や from:@名前
                 も使えます。
@@ -534,10 +544,7 @@ export function SearchView() {
                 {hasMore ? "+" : ""} 件のメッセージ
               </p>
               {results.map((r) => (
-                <HighlightContext.Provider
-                  key={r.message.id}
-                  value={parsed.text.split(/\s+/).filter(Boolean)}
-                >
+                <HighlightContext.Provider key={r.message.id} value={searchTerms(parsed.text)}>
                   <MessagePreview
                     m={r.message}
                     header={

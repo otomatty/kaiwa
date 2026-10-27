@@ -42,7 +42,12 @@ describe("channels", () => {
 
     expect((await bob.post(`/channels/${cid}/leave`)).status).toBe(200);
     const general = await bob.channel(wid, "general");
+    expect(general.isRequired).toBe(true);
     expect((await bob.post(`/channels/${general.id}/leave`)).status).toBe(403);
+    // #random is joined automatically but can be left
+    const random = await bob.channel(wid, "random");
+    expect(random.isRequired).toBe(false);
+    expect((await bob.post(`/channels/${random.id}/leave`)).status).toBe(200);
   });
 
   it("keeps private channels invisible to non-members", async () => {

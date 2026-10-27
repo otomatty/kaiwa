@@ -59,6 +59,8 @@ workspaceChannelRoutes.get("/:wid/channels/browse", async (c) => {
       description: r.description,
       memberCount: r.member_count,
       isMember: r.is_member === 1,
+      isDefault: r.is_default === 1,
+      isRequired: r.is_required === 1,
       archivedAt: r.archived_at,
       createdAt: r.created_at,
     })),
@@ -211,7 +213,7 @@ channelRoutes.patch("/:cid", async (c) => {
 
   if (body.name !== undefined && body.name !== ch.name) {
     if (ch.kind === "dm" || ch.kind === "group") throw badRequest("DM の名前は変更できません");
-    if (ch.is_default && !isAdmin(access.role)) throw forbidden();
+    if (ch.is_required && !isAdmin(access.role)) throw forbidden();
     const err = channelNameError(body.name);
     if (err) throw badRequest(err, "invalid_name");
     const dupe = await db
@@ -291,7 +293,7 @@ channelRoutes.post("/:cid/leave", async (c) => {
   if (!access.isMember) return c.json({ ok: true });
   if (ch.kind === "dm" || ch.kind === "group")
     throw badRequest("DM からは退出できません。サイドバーから閉じてください");
-  if (ch.is_default) throw forbidden("このチャンネルからは退出できません");
+  if (ch.is_required) throw forbidden("このチャンネルからは退出できません");
   const now = Date.now();
   const m = systemMessage(db, ch, me.id, "channel_leave", "", now);
   await db.batch([
@@ -341,7 +343,7 @@ channelRoutes.delete("/:cid/members/:uid", async (c) => {
   const access = await requireChannel(db, c.req.param("cid"), me.id, { write: true });
   const ch = access.channel;
   if (ch.kind === "dm" || ch.kind === "group") throw badRequest("DM のメンバーは変更できません");
-  if (ch.is_default) throw forbidden("このチャンネルからメンバーを外すことはできません");
+  if (ch.is_required) throw forbidden("このチャンネルからメンバーを外すことはできません");
   if (!isAdmin(access.role) && ch.created_by !== me.id) throw forbidden();
   const now = Date.now();
   const m = systemMessage(db, ch, uid, "channel_leave", `<@${me.id}>`, now);
@@ -363,7 +365,7 @@ for (const action of ["archive", "unarchive"] as const) {
     const ch = access.channel;
     if (!access.isMember) throw forbidden();
     if (ch.kind === "dm" || ch.kind === "group") throw badRequest("DM はアーカイブできません");
-    if (ch.is_default) throw forbidden("このチャンネルはアーカイブできません");
+    if (ch.is_required) throw forbidden("このチャンネルはアーカイブできません");
     if (!isAdmin(access.role) && ch.created_by !== me.id) throw forbidden();
     const now = Date.now();
     const m = systemMessage(
@@ -391,7 +393,7 @@ channelRoutes.delete("/:cid", async (c) => {
   const access = await requireChannel(db, c.req.param("cid"), me.id);
   const ch = access.channel;
   if (ch.kind === "dm" || ch.kind === "group") throw badRequest("DM は削除できません");
-  if (ch.is_default) throw forbidden("このチャンネルは削除できません");
+  if (ch.is_required) throw forbidden("このチャンネルは削除できません");
   if (!isAdmin(access.role)) throw forbidden("チャンネルを削除できるのは管理者のみです");
   const members = await channelMemberIds(db, ch.id);
   const { results: files } = await db

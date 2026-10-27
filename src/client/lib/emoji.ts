@@ -69,16 +69,18 @@ export const GROUPS: { id: number; label: string; icon: string }[] = [
 export function searchEmoji(query: string, limit = 50): Emoji[] {
   const q = query.toLowerCase().replace(/^:/, "");
   if (!q) return EMOJI.slice(0, limit);
+  const exact: Emoji[] = [];
   const starts: Emoji[] = [];
   const contains: Emoji[] = [];
   const tagged: Emoji[] = [];
   for (const e of EMOJI) {
-    if (e.names.some((n) => n.startsWith(q))) starts.push(e);
+    if (e.names.includes(q)) exact.push(e);
+    else if (e.names.some((n) => n.startsWith(q))) starts.push(e);
     else if (e.names.some((n) => n.includes(q))) contains.push(e);
     else if (e.tags.includes(q)) tagged.push(e);
-    if (starts.length >= limit) break;
+    if (exact.length + starts.length >= limit) break;
   }
-  return [...starts, ...contains, ...tagged].slice(0, limit);
+  return [...exact, ...starts, ...contains, ...tagged].slice(0, limit);
 }
 
 const RECENT_KEY = "kaiwa:recent-emoji";

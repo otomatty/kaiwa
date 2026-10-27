@@ -10,6 +10,13 @@ const base = join(root, "node_modules/emojibase-data/en");
 const compact = JSON.parse(readFileSync(join(base, "compact.json"), "utf8"));
 const iamcal = JSON.parse(readFileSync(join(base, "shortcodes/iamcal.json"), "utf8"));
 const github = JSON.parse(readFileSync(join(base, "shortcodes/github.json"), "utf8"));
+// Japanese labels/keywords so the picker can be searched in Japanese (「ハート」「お祝い」).
+const ja = new Map(
+  JSON.parse(readFileSync(join(root, "node_modules/emojibase-data/ja/compact.json"), "utf8")).map((e) => [
+    e.hexcode,
+    [e.label, ...(e.tags ?? [])].filter(Boolean),
+  ]),
+);
 
 const toList = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
@@ -19,7 +26,7 @@ for (const e of compact) {
   if (e.group === undefined || e.group === 2) continue; // skip components (skin tone swatches etc.)
   const codes = [...new Set([...toList(iamcal[e.hexcode]), ...toList(github[e.hexcode])])];
   if (codes.length === 0) continue;
-  rows.push([e.unicode, codes, e.group, (e.tags ?? []).join(" ")]);
+  rows.push([e.unicode, codes, e.group, [...(e.tags ?? []), ...(ja.get(e.hexcode) ?? [])].join(" ")]);
 }
 rows.sort((a, b) => a[2] - b[2]);
 

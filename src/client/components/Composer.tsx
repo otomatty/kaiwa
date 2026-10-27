@@ -71,6 +71,17 @@ interface Suggestion {
 
 const draftKey = (cid: string, rootId?: string | null) => `kaiwa:draft:${cid}${rootId ? `:${rootId}` : ""}`;
 
+function saveDraft(key: string, value: string) {
+  try {
+    const prev = localStorage.getItem(key) ?? "";
+    if (value.trim()) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+    if (prev !== (value.trim() ? value : "")) window.dispatchEvent(new Event("kaiwa:drafts"));
+  } catch {
+    // storage unavailable
+  }
+}
+
 export function readDraft(cid: string, rootId?: string | null): string {
   try {
     return localStorage.getItem(draftKey(cid, rootId)) ?? "";
@@ -119,19 +130,17 @@ export function Composer({
     if (autoFocus) requestAnimationFrame(() => ref.current?.focus());
   }, [channelId, threadRootId]);
 
-  // Persist drafts.
+  // Persist drafts: debounced while typing, flushed immediately when leaving the conversation.
+  const draftRef = useRef({ key: draftKey(channelId, threadRootId), value });
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        if (value.trim()) localStorage.setItem(draftKey(channelId, threadRootId), value);
-        else localStorage.removeItem(draftKey(channelId, threadRootId));
-        window.dispatchEvent(new Event("kaiwa:drafts"));
-      } catch {
-        // ignore
-      }
-    }, 250);
+    draftRef.current.value = value;
+    const t = setTimeout(() => saveDraft(draftRef.current.key, draftRef.current.value), 250);
     return () => clearTimeout(t);
-  }, [value, channelId, threadRootId]);
+  }, [value]);
+  useEffect(() => {
+    draftRef.current = { key: draftKey(channelId, threadRootId), value: readDraft(channelId, threadRootId) };
+    return () => saveDraft(draftRef.current.key, draftRef.current.value);
+  }, [channelId, threadRootId]);
 
   // Auto-grow.
   // biome-ignore lint/correctness/useExhaustiveDependencies: depends on value
@@ -500,13 +509,15 @@ export function Composer({
       void submit();
       return;
     }
-    if (e.key === "ArrowUp" && value === "" && !threadRootId) {
-      // Edit your last message.
+    if (e.key === "ArrowUp" && value === "") {
+      // Edit your last message (in this channel, or in this thread).
       const s = get();
-      const ids = s.channelMsgs[channelId]?.ids ?? [];
+      const ids = threadRootId
+        ? (s.threads[threadRootId]?.replyIds ?? [])
+        : (s.channelMsgs[channelId]?.ids ?? []);
       for (let i = ids.length - 1; i >= 0; i--) {
         const m = s.messages[ids[i] as string];
-        if (m && m.userId === meId && !m.subtype && !m.deletedAt && !m.pending) {
+        if (m && m.userId === meId && (!m.subtype || m.subtype === "me") && !m.deletedAt && !m.pending) {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent("kaiwa:edit", { detail: m.id }));
           return;

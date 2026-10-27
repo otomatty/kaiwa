@@ -90,7 +90,7 @@ export function WorkspaceRail() {
   const tabs: { id: SidebarTab; label: string; icon: React.ReactNode; badge?: number; dot?: boolean }[] = [
     { id: "home", label: "ホーム", icon: <House size={20} />, badge: mentions || undefined, dot: homeUnread },
     { id: "dms", label: "DM", icon: <MessagesSquare size={20} />, badge: dmBadge || undefined },
-    { id: "activity", label: "アクティビティ", icon: <Bell size={20} />, dot: unreadThreads > 0 },
+    { id: "activity", label: "アクティビティ", icon: <Bell size={20} />, badge: unreadThreads || undefined },
     { id: "later", label: "後で", icon: <Bookmark size={20} /> },
   ];
 
@@ -814,7 +814,7 @@ function ChannelRow({
                 >
                   チャンネル詳細を開く
                 </MenuItem>
-                {!channel.isDefault && (
+                {!channel.isRequired && (
                   <MenuItem
                     danger
                     onClick={() => {

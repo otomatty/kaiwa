@@ -48,7 +48,10 @@ export interface Channel {
   name: string;
   topic: string;
   description: string;
+  /** New members join automatically. */
   isDefault: boolean;
+  /** Everyone stays in this channel (#general): it cannot be left, archived or deleted. */
+  isRequired: boolean;
   createdBy: string;
   createdAt: number;
   archivedAt: number | null;

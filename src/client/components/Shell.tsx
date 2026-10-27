@@ -21,6 +21,17 @@ import {
   UnreadsView,
 } from "./Views";
 
+function UnknownView() {
+  const wid = useStore((s) => s.wid) as string;
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <p className="font-bold text-[18px]">ページが見つかりません</p>
+      <p className="text-fg-muted">URL が間違っているか、このページは存在しません。</p>
+      <Button onClick={() => navigate(`/w/${wid}`)}>ホームに戻る</Button>
+    </div>
+  );
+}
+
 export function WorkspaceShell({ wid }: { wid: string }) {
   const path = usePath();
   const loaded = useStore((s) => s.wid === wid && !!s.workspace);
@@ -101,6 +112,7 @@ export function WorkspaceShell({ wid }: { wid: string }) {
   else if (view === "later") main = <LaterView />;
   else if (view === "search") main = <SearchView />;
   else if (view === "dms") main = <EmptyDmView />;
+  else if (view) main = <UnknownView />;
   else main = null;
 
   return (

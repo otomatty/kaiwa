@@ -1,6 +1,6 @@
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { InvitePage, LoginPage, NewWorkspacePage, SignupPage } from "./components/Auth";
+import { InvitePage, LoginPage, NewWorkspacePage, NotFoundPage, SignupPage } from "./components/Auth";
 import { WorkspaceShell } from "./components/Shell";
 import { cx, Spinner } from "./components/ui";
 import { match, navigate, usePath } from "./lib/router";
@@ -88,6 +88,7 @@ function App() {
   else if (path === "/signup") page = <SignupPage />;
   else if (me && path === "/new") page = <NewWorkspacePage />;
   else if (me && ws) page = <WorkspaceShell key={ws} wid={ws} />;
+  else if (me && path !== "/") page = <NotFoundPage />;
 
   return (
     <>

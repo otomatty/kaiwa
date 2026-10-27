@@ -231,3 +231,15 @@ describe("forwarding", () => {
     expect(denied.status).toBe(404);
   });
 });
+
+describe("search phrases", () => {
+  it("treats quoted text as a phrase", async () => {
+    const { owner, wid, cid } = await setup();
+    await owner.post(`/channels/${cid}/messages`, { text: "編集後の資料を共有します" });
+    await owner.post(`/channels/${cid}/messages`, { text: "資料は編集中です" });
+    const r = await owner.get<{ results: SearchResult[] }>(
+      `/workspaces/${wid}/search?q=${encodeURIComponent('"編集後"')}`,
+    );
+    expect(r.body.results.map((x) => x.message.text)).toEqual(["編集後の資料を共有します"]);
+  });
+});
