@@ -85,7 +85,7 @@ export function WorkspaceRail() {
   return (
     <nav
       aria-label="ワークスペース"
-      className="flex w-[76px] shrink-0 flex-col items-center gap-3 bg-rail py-3 text-sidebar-fg"
+      className="flex w-[78px] shrink-0 flex-col items-center gap-3 bg-rail py-3 text-sidebar-fg"
     >
       <div className="flex flex-col items-center gap-2">
         {workspaces.map((w) => (
@@ -122,7 +122,7 @@ export function WorkspaceRail() {
             key={t.id}
             type="button"
             onClick={() => set({ sidebarTab: t.id, mobileSidebar: true })}
-            className="group flex w-[72px] flex-col items-center gap-0.5 py-1 text-[10.5px] tracking-tight whitespace-nowrap"
+            className="group flex w-[76px] flex-col items-center gap-0.5 py-1 text-[10px] tracking-tight whitespace-nowrap"
             aria-current={tab === t.id ? "page" : undefined}
           >
             <span

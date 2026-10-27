@@ -446,7 +446,9 @@ export function Composer({
         setSelected((i) => (i - 1 + suggestions.length) % suggestions.length);
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      // A fully typed slash command runs on Enter instead of re-inserting itself.
+      const exactCommand = token.trigger === "/" && suggestions.some((s) => s.key === token.query);
+      if ((e.key === "Enter" && !exactCommand) || e.key === "Tab") {
         e.preventDefault();
         const s = suggestions[selected];
         if (s) accept(s);
