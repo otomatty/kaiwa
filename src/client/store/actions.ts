@@ -233,11 +233,21 @@ export async function loadLatest(cid: string) {
   try {
     const page = await api.messages(cid, { limit: 50 });
     upsertMessages(page.messages);
+    // Messages that arrived over the socket (or were sent) while the page was loading.
+    const pageIds = new Set(page.messages.map((m) => m.id));
+    const newest = page.messages.at(-1)?.createdAt ?? 0;
+    const arrived = Object.values(get().messages)
+      .filter(
+        (m) =>
+          m.channelId === cid &&
+          (!m.threadRootId || m.broadcast) &&
+          m.createdAt >= newest &&
+          !pageIds.has(m.id) &&
+          (!m.deletedAt || m.replyCount > 0),
+      )
+      .map((m) => m.id);
     setChannelMsgs(cid, {
-      ids: sortIds(
-        page.messages.map((m) => m.id),
-        get().messages,
-      ),
+      ids: sortIds([...pageIds, ...arrived], get().messages),
       hasMoreBefore: page.hasMoreBefore,
       hasMoreAfter: false,
       loaded: true,
@@ -326,11 +336,17 @@ async function catchUp(cid: string) {
 export async function loadThread(rootId: string) {
   const view = await api.thread(rootId);
   upsertMessages([view.root, ...view.replies]);
+  // Replies that arrived while the thread was loading.
+  const known = new Set(view.replies.map((r) => r.id));
+  const newest = view.replies.at(-1)?.createdAt ?? view.root.createdAt;
+  const arrived = Object.values(get().messages)
+    .filter((m) => m.threadRootId === view.root.id && m.createdAt >= newest && !known.has(m.id))
+    .map((m) => m.id);
   set((s) => ({
     threads: {
       ...s.threads,
       [view.root.id]: {
-        replyIds: view.replies.map((r) => r.id),
+        replyIds: sortIds([...known, ...arrived], s.messages),
         loaded: true,
         subscribed: view.subscribed,
         lastReadAt: view.lastReadAt,
@@ -649,9 +665,15 @@ export function dropChannel(cid: string) {
   if (currentChannelId() === cid) goToDefaultChannel();
 }
 
+const refreshSeq = new Map<string, number>();
+
 export async function refreshChannel(cid: string) {
+  // Ignore responses that were overtaken by a newer refresh of the same channel.
+  const seq = (refreshSeq.get(cid) ?? 0) + 1;
+  refreshSeq.set(cid, seq);
   try {
     const r = await api.channel(cid);
+    if (refreshSeq.get(cid) !== seq) return r;
     if (r.channel.isMember) addChannel(r.channel);
     else set((s) => ({ directory: { ...s.directory, [cid]: r.channel } }));
     return r;

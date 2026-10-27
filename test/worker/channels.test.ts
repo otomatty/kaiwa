@@ -117,6 +117,7 @@ describe("channels", () => {
     bobView = (await bob.bootstrap(wid)).channels.find((c) => c.id === dm.body.channel.id);
     expect(bobView?.hidden).toBe(false);
     expect(bobView?.unreadCount).toBe(1);
+    expect(bobView?.mentionCount).toBe(1);
     expect((await carol.get(`/channels/${dm.body.channel.id}/messages`)).status).toBe(404);
 
     const group = await owner.post<{ channel: MyChannel }>(`/workspaces/${wid}/dms`, {

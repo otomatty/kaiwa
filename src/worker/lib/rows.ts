@@ -149,7 +149,8 @@ export function toMyChannel(r: MyChannelRow, memberIds: string[]): MyChannel {
     isMember: true,
     lastReadAt: r.last_read_at,
     unreadCount: r.unread_count,
-    mentionCount: r.mention_count,
+    // Every unread direct message counts as a mention (badge), like other chat apps.
+    mentionCount: r.kind === "dm" || r.kind === "group" ? r.unread_count : r.mention_count,
     latestAt: r.latest_at,
     latestPreview: r.latest_preview ? (JSON.parse(r.latest_preview) as MyChannel["latestPreview"]) : null,
     starred: r.starred === 1,
