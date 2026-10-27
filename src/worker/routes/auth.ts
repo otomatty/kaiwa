@@ -87,6 +87,7 @@ meRoutes.patch("/", requireAuth, async (c) => {
     timezone: "timezone",
     avatarColor: "avatar_color",
     avatarFileId: "avatar_file_id",
+    dndUntil: "dnd_until",
   };
   for (const [key, col] of Object.entries(map)) {
     const v = (body as Record<string, unknown>)[key];

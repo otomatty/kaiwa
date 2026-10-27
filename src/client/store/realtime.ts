@@ -122,6 +122,7 @@ function notify(m: Message) {
   const s = get();
   const me = s.me;
   if (!me || m.userId === me.id || m.subtype) return;
+  if (me.dndUntil && me.dndUntil > Date.now()) return;
   const ch = s.channels[m.channelId];
   const isDm = ch?.kind === "dm" || ch?.kind === "group";
   const isMention = mentionsMe(m, me.id);

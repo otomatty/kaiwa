@@ -16,6 +16,8 @@ export interface User {
   statusText: string;
   statusExpiresAt: number | null;
   away: boolean;
+  /** Notifications paused until this time (do not disturb). */
+  dndUntil: number | null;
   timezone: string;
   createdAt: number;
 }

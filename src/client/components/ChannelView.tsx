@@ -7,7 +7,7 @@ import { channelLabel, openModal, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
 import { MessageList } from "./MessageList";
 import { Emoji, MessageText } from "./MessageText";
-import { Avatar, Button, cx, IconButton, Popover, PresenceDot, Spinner, usePresence } from "./ui";
+import { Avatar, Button, cx, DndIcon, IconButton, Popover, PresenceDot, Spinner, usePresence } from "./ui";
 
 export function ChannelView({ channelId }: { channelId: string }) {
   const channel = useStore((s) => s.channels[channelId]);
@@ -190,6 +190,7 @@ function ChannelHeader({ channel }: { channel: MyChannel }) {
               <span className="truncate">{channelLabel(channel, meId)}</span>
               <PresenceDot presence={presence} size={10} />
               {other?.statusEmoji && <Emoji name={other.statusEmoji} size={16} />}
+              <DndIcon until={other?.dndUntil} size={15} />
             </>
           ) : channel.kind === "group" ? (
             <span className="truncate">{channelLabel(channel, meId)}</span>

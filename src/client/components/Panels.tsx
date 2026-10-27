@@ -8,7 +8,7 @@ import { channelLabel, get, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
 import { isGrouped, MessageItem, MessagePreview } from "./Message";
 import { Emoji } from "./MessageText";
-import { Avatar, Button, IconButton, PresenceDot, Spinner, usePresence } from "./ui";
+import { Avatar, Button, DndIcon, IconButton, PresenceDot, Spinner, usePresence } from "./ui";
 
 function PanelShell({
   title,
@@ -180,6 +180,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
           <h3 className="flex items-center gap-2 font-bold text-[22px]">
             {member.displayName}
             <PresenceDot presence={presence} size={12} />
+            <DndIcon until={member.dndUntil} size={16} />
           </h3>
           {member.fullName && <p className="text-[15px] text-fg-muted">{member.fullName}</p>}
           {member.title && <p className="mt-0.5 text-[15px]">{member.title}</p>}

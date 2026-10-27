@@ -26,6 +26,7 @@ export interface UserRow {
   status_text: string;
   status_expires_at: number | null;
   away: number;
+  dnd_until: number | null;
   timezone: string;
   created_at: number;
 }
@@ -97,6 +98,7 @@ export function toUser(r: UserRow): User {
     statusText: statusExpired ? "" : r.status_text,
     statusExpiresAt: statusExpired ? null : r.status_expires_at,
     away: r.away === 1,
+    dndUntil: r.dnd_until && r.dnd_until > Date.now() ? r.dnd_until : null,
     timezone: r.timezone,
     createdAt: r.created_at,
   };

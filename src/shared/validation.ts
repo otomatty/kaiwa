@@ -59,6 +59,7 @@ export const updateProfileSchema = z
     statusText: z.string().max(LIMITS.statusText),
     statusExpiresAt: z.number().int().positive().nullable(),
     away: z.boolean(),
+    dndUntil: z.number().int().positive().nullable(),
     timezone: z.string().max(64),
     avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     avatarFileId: z.string().max(64).nullable(),

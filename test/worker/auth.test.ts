@@ -104,3 +104,14 @@ describe("rate limiting", () => {
     expect(statuses.at(-1)).toBe(429);
   });
 });
+
+describe("do not disturb", () => {
+  it("stores a pause-notifications deadline and expires it", async () => {
+    const c = await signup("dnd");
+    const until = Date.now() + 60_000;
+    const r = await c.patch<{ user: { dndUntil: number | null } }>("/me", { dndUntil: until });
+    expect(r.body.user.dndUntil).toBe(until);
+    const past = await c.patch<{ user: { dndUntil: number | null } }>("/me", { dndUntil: Date.now() - 1 });
+    expect(past.body.user.dndUntil).toBeNull();
+  });
+});

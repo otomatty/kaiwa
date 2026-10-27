@@ -25,10 +25,19 @@ import { emojify } from "../lib/emoji";
 import { formatRelative } from "../lib/format";
 import { navigate, routes, usePath } from "../lib/router";
 import { leaveChannel, logout, markChannelRead, reportError, setChannelPrefs } from "../store/actions";
-import { channelLabel, displayName, get, openModal, type SidebarTab, set, useStore } from "../store/store";
+import {
+  channelLabel,
+  displayName,
+  get,
+  openModal,
+  type SidebarTab,
+  set,
+  toast,
+  useStore,
+} from "../store/store";
 import { ActivityList, SavedList } from "./Lists";
 import { Emoji } from "./MessageText";
-import { Avatar, cx, MenuItem, MenuSeparator, Popover, PresenceDot, usePresence } from "./ui";
+import { Avatar, cx, DndIcon, MenuItem, MenuSeparator, Popover, PresenceDot, usePresence } from "./ui";
 
 function useDrafts(): Set<string> {
   const [keys, setKeys] = useState<Set<string>>(new Set());
@@ -215,6 +224,7 @@ function UserMenu({ onClose }: { onClose: () => void }) {
       >
         {me.away ? "自分をアクティブに設定する" : "自分を離席中に設定する"}
       </MenuItem>
+      <DndMenu onDone={onClose} />
       <MenuSeparator />
       <MenuItem onClick={run(() => set({ panel: { kind: "profile", userId: me.id } }))}>
         プロフィール
@@ -226,6 +236,67 @@ function UserMenu({ onClose }: { onClose: () => void }) {
       <MenuSeparator />
       <MenuItem onClick={run(() => void logout())}>サインアウト</MenuItem>
     </div>
+  );
+}
+
+function DndMenu({ onDone }: { onDone: () => void }) {
+  const me = useStore((s) => s.me);
+  const [open, setOpen] = useState(false);
+  if (!me) return null;
+  const active = !!me.dndUntil && me.dndUntil > Date.now();
+  const setDnd = async (until: number | null) => {
+    onDone();
+    try {
+      const r = await api.updateMe({ dndUntil: until });
+      set({ me: r.user });
+      toast(until ? "通知を一時停止しました" : "通知を再開しました");
+    } catch (err) {
+      reportError(err);
+    }
+  };
+  const tomorrow = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return d.getTime();
+  };
+  if (active) {
+    return (
+      <>
+        <p className="px-5 pt-1 text-[12px] text-fg-muted">
+          通知を一時停止中（
+          {new Date(me.dndUntil as number).toLocaleString("ja-JP", {
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+          まで）
+        </p>
+        <MenuItem onClick={() => void setDnd(null)}>通知を再開する</MenuItem>
+      </>
+    );
+  }
+  return open ? (
+    <>
+      <p className="px-5 pt-1 pb-0.5 text-[12px] text-fg-muted">通知を一時停止する</p>
+      {(
+        [
+          ["30分", 30],
+          ["1時間", 60],
+          ["2時間", 120],
+        ] as const
+      ).map(([label, min]) => (
+        <MenuItem key={label} onClick={() => void setDnd(Date.now() + min * 60_000)}>
+          <span className="pl-3">{label}</span>
+        </MenuItem>
+      ))}
+      <MenuItem onClick={() => void setDnd(tomorrow())}>
+        <span className="pl-3">明日まで</span>
+      </MenuItem>
+    </>
+  ) : (
+    <MenuItem onClick={() => setOpen(true)}>通知を一時停止する…</MenuItem>
   );
 }
 
@@ -655,6 +726,7 @@ function ChannelRow({
         </span>
         <span className="flex-1 truncate">{channelLabel(channel, meId)}</span>
         {other?.statusEmoji && channel.kind === "dm" && <Emoji name={other.statusEmoji} size={13} />}
+        {channel.kind === "dm" && other?.dndUntil ? <DndIcon until={other.dndUntil} size={12} /> : null}
         {hasDraft && !active && <Pencil size={13} className="shrink-0 opacity-70" />}
         {channel.mentionCount > 0 && !active ? (
           <span className="rounded-full bg-badge px-1.5 font-bold text-[12px] text-white leading-[18px]">

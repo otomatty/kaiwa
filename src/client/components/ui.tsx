@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { BellOff, X } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   type ReactNode,
@@ -374,5 +374,21 @@ export function TextField({
         <span className="mt-1 block text-[13px] text-fg-muted">{hint}</span>
       ) : null}
     </label>
+  );
+}
+
+/** Small "notifications paused" marker shown next to a person's name. */
+export function DndIcon({ until, size = 13 }: { until: number | null | undefined; size?: number }) {
+  if (!until || until < Date.now()) return null;
+  const time = new Date(until).toLocaleString("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return (
+    <span title={`通知を一時停止中（${time}まで）`} className="inline-flex text-fg-subtle">
+      <BellOff size={size} aria-label="通知を一時停止中" />
+    </span>
   );
 }
