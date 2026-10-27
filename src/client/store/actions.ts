@@ -1,6 +1,7 @@
 import type { Channel, Message, MyChannel, Reaction } from "../../shared/types";
 import { ApiError, api } from "../lib/api";
 import { encodeLinks, encodeMentions } from "../lib/compose";
+import { rememberEmoji } from "../lib/emoji";
 import { navigate, routes } from "../lib/router";
 import {
   type ChannelMessages,
@@ -496,6 +497,7 @@ export async function toggleReaction(id: string, emoji: string) {
       ? m.reactions.map((r) => (r.emoji === emoji ? { ...r, userIds: [...r.userIds, me.id] } : r))
       : [...m.reactions, { emoji, userIds: [me.id] }];
   patchMessage(id, { reactions: next });
+  if (!has) rememberEmoji(emoji);
   try {
     const r = has ? await api.unreact(id, emoji) : await api.react(id, emoji);
     patchMessage(id, { reactions: r.reactions });

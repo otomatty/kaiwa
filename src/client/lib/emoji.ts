@@ -67,7 +67,7 @@ export function searchEmoji(query: string, limit = 50): Emoji[] {
 }
 
 const RECENT_KEY = "kaiwa:recent-emoji";
-const DEFAULT_RECENT = ["+1", "white_check_mark", "eyes", "pray", "tada", "raised_hands", "heart", "joy"];
+const DEFAULT_RECENT = ["white_check_mark", "eyes", "raised_hands", "+1", "pray", "tada", "heart", "joy"];
 
 export function recentEmoji(): string[] {
   try {

@@ -134,7 +134,9 @@ export function QuickReactions({
   onPick: (name: string) => void;
   className?: string;
 }) {
-  const names = ["white_check_mark", "eyes", "raised_hands"];
+  // Like other chat apps, the hover bar offers the reactions you use most.
+  const recent = recentEmoji();
+  const names = [...new Set([...recent, "white_check_mark", "eyes", "raised_hands"])].slice(0, 3);
   return (
     <>
       {names.map((n) => (
