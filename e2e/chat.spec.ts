@@ -216,3 +216,40 @@ test("deep links jump to an old message, and older history loads on scroll", asy
   await expect(message(A, /履歴メッセージ 5(?!\d)/)).toHaveCount(1);
   await expect(A.getByText("これは #general チャンネルの始まりです", { exact: false })).toBeVisible();
 });
+
+test("forward a message, pause notifications and review all unreads", async ({ browser }) => {
+  const aoi = await newUser(browser, "青井");
+  const ren = await newUser(browser, "佐藤");
+  await setupWorkspace(aoi, ren);
+  const A = aoi.page;
+  const B = ren.page;
+
+  await send(A, "リリースノートを更新しました");
+  await message(B, "リリースノートを更新しました").hover();
+  await B.getByRole("button", { name: "その他" }).click();
+  await B.getByRole("menuitem", { name: "メッセージを転送…" }).click();
+  await B.getByLabel("転送先を検索").fill("random");
+  await B.getByRole("option", { name: "#random" }).click();
+  await B.getByLabel("転送時のメッセージ").fill("共有します");
+  await B.getByRole("button", { name: "転送する" }).click();
+  await expect(B.getByText("#random に転送しました")).toBeVisible();
+  await openChannel(A, "random");
+  const shared = message(A, "共有します").getByTestId("shared-message");
+  await expect(shared).toContainText("リリースノートを更新しました");
+  await expect(shared).toContainText("#general のメッセージ");
+
+  // Pause notifications
+  await B.getByRole("button", { name: "自分のメニュー" }).click();
+  await B.getByRole("menuitem", { name: "通知を一時停止する…" }).click();
+  await B.getByRole("menuitem", { name: "1時間" }).click();
+  await expect(B.getByText("通知を一時停止しました")).toBeVisible();
+
+  // All unreads
+  await openChannel(B, "random");
+  await openChannel(A, "general");
+  await send(A, "未読チェック用のメッセージ");
+  await B.getByRole("button", { name: "すべての未読" }).click();
+  await expect(B.getByText("未読チェック用のメッセージ")).toBeVisible();
+  await B.getByRole("button", { name: "すべて既読にする" }).click();
+  await expect(B.getByText("未読はありません")).toBeVisible();
+});
