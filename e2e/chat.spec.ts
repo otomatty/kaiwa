@@ -253,3 +253,25 @@ test("forward a message, pause notifications and review all unreads", async ({ b
   await B.getByRole("button", { name: "すべて既読にする" }).click();
   await expect(B.getByText("未読はありません")).toBeVisible();
 });
+
+test("custom emoji can be added and used in messages", async ({ browser }) => {
+  const aoi = await newUser(browser, "青井");
+  const ren = await newUser(browser, "佐藤");
+  await setupWorkspace(aoi, ren);
+  const A = aoi.page;
+  const B = ren.page;
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await A.getByRole("button", { name: "E2E チーム", exact: true }).click();
+  await A.getByRole("menuitem", { name: "カスタム絵文字を追加する" }).click();
+  await A.getByLabel("絵文字の画像").setInputFiles({ name: "kaiwa.png", mimeType: "image/png", buffer: png });
+  await A.getByLabel("名前").fill("kaiwa-logo");
+  await A.getByRole("dialog").getByRole("button", { name: "追加する", exact: true }).click();
+  await expect(A.getByText(":kaiwa-logo: を追加しました")).toBeVisible();
+  await A.keyboard.press("Escape");
+
+  await send(A, "新しいロゴです :kaiwa-logo:");
+  await expect(message(B, "新しいロゴです").getByRole("img", { name: ":kaiwa-logo:" })).toBeVisible();
+});

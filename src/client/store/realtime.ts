@@ -319,6 +319,9 @@ function handle(e: ServerEvent) {
         return { members };
       });
       return;
+    case "emoji.updated":
+      set({ customEmoji: Object.fromEntries(e.emoji.map((x) => [x.name, x.url])) });
+      return;
     case "workspace.updated":
       set((st) => ({
         workspace: e.workspace,

@@ -8,6 +8,21 @@ export interface Emoji {
   names: string[];
   group: number;
   tags: string;
+  /** Set for workspace custom emoji (rendered as an image). */
+  url?: string;
+}
+
+export function customEmojiList(map: Record<string, string>): Emoji[] {
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, url]) => ({ char: "", names: [name], group: -1, tags: "", url }));
+}
+
+/** Standard + custom search, custom matches first. */
+export function searchAllEmoji(query: string, custom: Record<string, string>, limit = 50): Emoji[] {
+  const q = query.toLowerCase().replace(/^:/, "");
+  const customHits = customEmojiList(custom).filter((e) => !q || (e.names[0] as string).includes(q));
+  return [...customHits, ...searchEmoji(query, limit)].slice(0, limit);
 }
 
 export const EMOJI: Emoji[] = rows.map(([char, names, group, tags]) => ({ char, names, group, tags }));

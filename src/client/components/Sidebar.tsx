@@ -363,6 +363,14 @@ export function Sidebar() {
               >
                 チャンネルを作成する
               </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setMenu(false);
+                  openModal({ kind: "customEmoji" });
+                }}
+              >
+                カスタム絵文字を追加する
+              </MenuItem>
               {(role === "owner" || role === "admin") && (
                 <MenuItem
                   onClick={() => {

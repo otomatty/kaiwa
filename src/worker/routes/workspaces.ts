@@ -9,6 +9,7 @@ import { badRequest, forbidden, notFound, parseJson } from "../lib/http";
 import { newId, pickColor, randomCode } from "../lib/ids";
 import { hub, publish } from "../lib/realtime";
 import { hydrateOne, toMember, toWorkspace, type UserRow, type WorkspaceRow } from "../lib/rows";
+import { listCustomEmoji } from "./emoji";
 
 export async function listMyWorkspaces(db: D1Database, userId: string): Promise<WorkspaceSummary[]> {
   const { results } = await db
@@ -171,6 +172,7 @@ workspaceRoutes.get("/:wid/bootstrap", async (c) => {
   }
   const body: Bootstrap = {
     workspace: toWorkspace(ws?.results[0] as WorkspaceRow),
+    customEmoji: await listCustomEmoji(db, wid),
     role,
     members: ((members?.results ?? []) as (UserRow & { role: Role; joined_at: number })[]).map(toMember),
     channels,

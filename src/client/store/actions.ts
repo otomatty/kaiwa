@@ -56,6 +56,7 @@ export async function bootWorkspace(wid: string) {
       directory,
       presence: b.online,
       unreadThreads: b.unreadThreads,
+      customEmoji: Object.fromEntries(b.customEmoji.map((e) => [e.name, e.url])),
     });
     // Learn names of public channels we're not in (for #channel links).
     api
@@ -105,6 +106,7 @@ export async function resync() {
         members: Object.fromEntries(b.members.map((m) => [m.id, m])),
         presence: b.online,
         unreadThreads: b.unreadThreads,
+        customEmoji: Object.fromEntries(b.customEmoji.map((e) => [e.name, e.url])),
         workspace: b.workspace,
         role: b.role,
         directory: { ...s.directory, ...channels },

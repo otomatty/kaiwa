@@ -90,7 +90,16 @@ fileRoutes.get("/:fid", async (c) => {
       )
       .bind(row.id, me.id)
       .first();
-    if (!avatar) throw notFound("ファイルが見つかりません");
+    const emoji = avatar
+      ? null
+      : await db
+          .prepare(
+            `SELECT 1 FROM custom_emoji ce JOIN workspace_members wm ON wm.workspace_id = ce.workspace_id
+             WHERE ce.file_id = ?1 AND wm.user_id = ?2`,
+          )
+          .bind(row.id, me.id)
+          .first();
+    if (!avatar && !emoji) throw notFound("ファイルが見つかりません");
   }
 
   const obj = await c.env.FILES.get(row.r2_key, { range: c.req.raw.headers, onlyIf: c.req.raw.headers });

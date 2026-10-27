@@ -37,7 +37,7 @@ import {
   SLASH_COMMANDS,
   wrapSelection,
 } from "../lib/compose";
-import { searchEmoji } from "../lib/emoji";
+import { searchAllEmoji } from "../lib/emoji";
 import { formatBytes } from "../lib/format";
 import { navigate, routes } from "../lib/router";
 import {
@@ -107,6 +107,7 @@ export function Composer({
   const meId = useStore((s) => s.me?.id);
   const members = useStore((s) => s.members);
   const directory = useStore((s) => s.directory);
+  const customEmoji = useStore((s) => s.customEmoji);
 
   // Reset when switching conversations.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on conversation change
@@ -252,11 +253,14 @@ export function Composer({
         }));
     }
     if (token.trigger === ":") {
-      return searchEmoji(token.query, 8).map((e) => ({
+      return searchAllEmoji(token.query, customEmoji, 8).map((e) => ({
         key: e.names[0] as string,
         label: (
           <span className="flex items-center gap-2">
-            <span className="text-[18px]">{e.char}</span>:{e.names[0]}:
+            <span className="text-[18px]">
+              {e.url ? <img src={e.url} alt="" className="h-[18px] w-[18px] object-contain" /> : e.char}
+            </span>
+            :{e.names[0]}:
           </span>
         ),
         insert: `:${e.names[0]}: `,
@@ -268,7 +272,7 @@ export function Composer({
       sub: c.description,
       insert: `/${c.name} `,
     }));
-  }, [token, members, directory, channel]);
+  }, [token, members, directory, channel, customEmoji]);
 
   const updateToken = () => {
     const el = ref.current;

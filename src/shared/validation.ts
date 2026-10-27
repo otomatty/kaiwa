@@ -109,4 +109,16 @@ export const bookmarkSchema = z.object({
     .refine((u) => /^https?:\/\//i.test(u), "http(s) のURLを入力してください"),
 });
 
+export const customEmojiSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(
+      /^[a-z0-9_-]{1,40}$/,
+      "名前に使えるのは半角英小文字・数字・ハイフン・アンダースコアです（40文字まで）",
+    ),
+  fileId: z.string().max(64),
+});
+
 export const roleSchema = z.object({ role: z.enum(["admin", "member"]) });

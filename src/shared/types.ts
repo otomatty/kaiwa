@@ -188,8 +188,15 @@ export interface SearchResult {
   channel: { id: string; name: string; kind: ChannelKind; memberIds: string[] };
 }
 
+export interface CustomEmoji {
+  name: string;
+  url: string;
+  createdBy: string;
+}
+
 export interface Bootstrap {
   workspace: Workspace;
+  customEmoji: CustomEmoji[];
   role: Role;
   members: Member[];
   channels: MyChannel[];
@@ -229,6 +236,7 @@ export type ServerEvent =
   | { type: "member.upserted"; member: Member }
   | { type: "member.removed"; userId: string }
   | { type: "workspace.updated"; workspace: Workspace }
+  | { type: "emoji.updated"; emoji: CustomEmoji[] }
   | { type: "presence"; userId: string; presence: Presence }
   | { type: "typing"; channelId: string; threadRootId: string | null; userId: string };
 

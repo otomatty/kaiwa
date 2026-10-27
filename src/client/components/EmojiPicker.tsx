@@ -1,6 +1,16 @@
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { EMOJI, type Emoji, emojiChar, GROUPS, recentEmoji, rememberEmoji, searchEmoji } from "../lib/emoji";
+import {
+  customEmojiList,
+  EMOJI,
+  type Emoji,
+  GROUPS,
+  recentEmoji,
+  rememberEmoji,
+  searchAllEmoji,
+} from "../lib/emoji";
+import { openModal, useStore } from "../store/store";
+import { Emoji as EmojiGlyph } from "./MessageText";
 import { cx } from "./ui";
 
 /** Emoji picker. Calls onPick with the shortcode name (e.g. "+1"). */
@@ -14,14 +24,16 @@ export function EmojiPicker({
   const [query, setQuery] = useState("");
   const [hover, setHover] = useState<Emoji | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const results = useMemo(() => (query ? searchEmoji(query, 120) : null), [query]);
+  const customMap = useStore((s) => s.customEmoji);
+  const custom = useMemo(() => customEmojiList(customMap), [customMap]);
+  const results = useMemo(() => (query ? searchAllEmoji(query, customMap, 120) : null), [query, customMap]);
   const grouped = useMemo(() => {
     const map = new Map<number, Emoji[]>();
     for (const e of EMOJI) map.set(e.group, [...(map.get(e.group) ?? []), e]);
     return map;
   }, []);
   const recent = recentEmoji()
-    .map((n) => EMOJI.find((e) => e.names.includes(n)))
+    .map((n) => custom.find((e) => e.names[0] === n) ?? EMOJI.find((e) => e.names.includes(n)))
     .filter((e): e is Emoji => !!e);
 
   const pick = (e: Emoji) => {
@@ -39,7 +51,7 @@ export function EmojiPicker({
       className="flex h-8 w-8 items-center justify-center rounded-md text-[22px] leading-none hover:bg-bg-muted"
       aria-label={e.names[0]}
     >
-      {e.char}
+      {e.url ? <img src={e.url} alt="" className="h-[22px] w-[22px] object-contain" /> : e.char}
     </button>
   );
 
@@ -94,6 +106,7 @@ export function EmojiPicker({
         ) : (
           <>
             <Section title="よく使う絵文字">{recent.map(cell)}</Section>
+            {custom.length > 0 && <Section title="カスタム絵文字">{custom.map(cell)}</Section>}
             {GROUPS.map((g) => (
               <Section key={g.id} title={g.label} group={g.id}>
                 {(grouped.get(g.id) ?? []).map(cell)}
@@ -105,11 +118,22 @@ export function EmojiPicker({
       <div className="flex h-11 items-center gap-2 border-line border-t px-3 text-[13px]">
         {hover ? (
           <>
-            <span className="text-[22px]">{hover.char}</span>
+            <span className="text-[22px]">
+              {hover.url ? <img src={hover.url} alt="" className="h-6 w-6 object-contain" /> : hover.char}
+            </span>
             <span className="truncate font-bold">:{hover.names[0]}:</span>
           </>
         ) : (
-          <span className="text-fg-muted">絵文字を選択してください</span>
+          <>
+            <span className="flex-1 text-fg-muted">絵文字を選択してください</span>
+            <button
+              type="button"
+              onClick={() => openModal({ kind: "customEmoji" })}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 font-bold text-[12px] text-link hover:bg-bg-muted"
+            >
+              <Plus size={13} /> 絵文字を追加
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -151,7 +175,7 @@ export function QuickReactions({
             className,
           )}
         >
-          {emojiChar(n)}
+          <EmojiGlyph name={n} size={17} />
         </button>
       ))}
     </>

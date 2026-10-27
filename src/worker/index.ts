@@ -7,6 +7,7 @@ import { HttpError } from "./lib/http";
 import { hub } from "./lib/realtime";
 import { authRoutes, meRoutes } from "./routes/auth";
 import { channelRoutes, workspaceChannelRoutes } from "./routes/channels";
+import { emojiRoutes } from "./routes/emoji";
 import { fileRoutes, fileUploadRoutes } from "./routes/files";
 import { messageRoutes, postMessage, threadRoutes } from "./routes/messages";
 import { unfurlRoutes } from "./routes/unfurl";
@@ -38,6 +39,7 @@ app.route("/workspaces", workspaceRoutes);
 app.route("/workspaces", workspaceChannelRoutes);
 app.route("/workspaces", viewRoutes);
 app.route("/workspaces", fileUploadRoutes);
+app.route("/workspaces", emojiRoutes);
 
 app.get("/workspaces/:wid/ws", requireAuth, async (c) => {
   if (c.req.header("Upgrade") !== "websocket") return c.text("Expected WebSocket", 426);

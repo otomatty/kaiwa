@@ -2,6 +2,7 @@ import type {
   ActivityItem,
   Bookmark,
   Bootstrap,
+  CustomEmoji,
   FileInfo,
   InviteInfo,
   Me,
@@ -216,4 +217,9 @@ export const api = {
   saved: (wid: string, completed = false) =>
     get<{ items: SavedItem[] }>(`/workspaces/${wid}/saved${completed ? "?state=completed" : ""}`),
   files: (wid: string) => get<{ files: FileInfo[] }>(`/workspaces/${wid}/files`),
+  customEmoji: (wid: string) => get<{ emoji: CustomEmoji[] }>(`/workspaces/${wid}/emoji`),
+  addEmoji: (wid: string, name: string, fileId: string) =>
+    post<{ emoji: CustomEmoji[] }>(`/workspaces/${wid}/emoji`, { name, fileId }),
+  deleteEmoji: (wid: string, name: string) =>
+    del<{ emoji: CustomEmoji[] }>(`/workspaces/${wid}/emoji/${encodeURIComponent(name)}`),
 };

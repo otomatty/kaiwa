@@ -7,7 +7,21 @@ import { useStore } from "../store/store";
 import { cx } from "./ui";
 
 export function Emoji({ name, size }: { name: string; size?: number }) {
-  const ch = emojiChar(name);
+  const custom = useStore((s) => s.customEmoji[name]);
+  const ch = custom ? null : emojiChar(name);
+  if (custom) {
+    const px = size ?? 20;
+    return (
+      <img
+        src={custom}
+        alt={`:${name}:`}
+        title={`:${name}:`}
+        className="inline-block align-[-0.25em] object-contain"
+        style={{ width: px, height: px }}
+        draggable={false}
+      />
+    );
+  }
   if (!ch) return <>{`:${name}:`}</>;
   return (
     <span

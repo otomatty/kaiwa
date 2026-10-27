@@ -32,6 +32,7 @@ export type Modal =
   | { kind: "createWorkspace" }
   | { kind: "imagePreview"; url: string; name: string }
   | { kind: "forward"; messageId: string }
+  | { kind: "customEmoji" }
   | {
       kind: "confirm";
       title: string;
@@ -81,6 +82,8 @@ export interface State {
   directory: Record<string, Channel>;
   presence: Record<string, Presence>;
   unreadThreads: number;
+  /** Workspace custom emoji: name → image URL. */
+  customEmoji: Record<string, string>;
 
   messages: Record<string, LocalMessage>;
   channelMsgs: Record<string, ChannelMessages>;
@@ -107,6 +110,7 @@ export const initialWorkspaceState = {
   directory: {},
   presence: {},
   unreadThreads: 0,
+  customEmoji: {} as Record<string, string>,
   messages: {},
   channelMsgs: {},
   threads: {},

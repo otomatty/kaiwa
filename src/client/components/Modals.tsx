@@ -66,6 +66,8 @@ function ModalSwitch({ modal }: { modal: ModalState }) {
       return <CreateWorkspaceModal />;
     case "forward":
       return <ForwardModal messageId={modal.messageId} />;
+    case "customEmoji":
+      return <CustomEmojiModal />;
     case "imagePreview":
       return (
         <Modal title={modal.name} onClose={closeModal} width={1000}>
@@ -1413,6 +1415,141 @@ function CreateWorkspaceModal() {
         placeholder="例: 株式会社サンプル"
         hint="会社やチームの名前など、メンバーが見てわかる名前にしましょう。"
       />
+    </Modal>
+  );
+}
+
+// ---------- Custom emoji ----------
+
+function CustomEmojiModal() {
+  const wid = useStore((s) => s.wid) as string;
+  const custom = useStore((s) => s.customEmoji);
+  const meId = useStore((s) => s.me?.id);
+  const role = useStore((s) => s.role);
+  const members = useStore((s) => s.members);
+  const [list, setList] = useState<{ name: string; url: string; createdBy: string }[] | null>(null);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload when the workspace list changes
+  useEffect(() => {
+    api
+      .customEmoji(wid)
+      .then((r) => setList(r.emoji))
+      .catch(reportError);
+  }, [wid, custom]);
+
+  useEffect(() => {
+    if (!file) return setPreview(null);
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const add = async () => {
+    if (!file || !name.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const info = await uploadFile(wid, file).promise;
+      const r = await api.addEmoji(wid, name.trim().toLowerCase(), info.id);
+      set({ customEmoji: Object.fromEntries(r.emoji.map((e) => [e.name, e.url])) });
+      setName("");
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+      toast(`:${name.trim().toLowerCase()}: を追加しました`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "追加できませんでした");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="カスタム絵文字"
+      subtitle="ワークスペースのメンバー全員が使える絵文字を追加できます。"
+      onClose={closeModal}
+      width={600}
+    >
+      <div className="mb-6 rounded-lg border border-line p-4">
+        <div className="flex items-start gap-4">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border-2 border-line-strong border-dashed text-[12px] text-fg-muted hover:border-link"
+          >
+            {preview ? <img src={preview} alt="" className="h-14 w-14 object-contain" /> : "画像を選択"}
+          </button>
+          <div className="min-w-0 flex-1 space-y-2">
+            <TextField
+              label="名前"
+              value={name}
+              maxLength={40}
+              onChange={(e) => {
+                setName(e.target.value.replace(/[\s:]/g, "").toLowerCase());
+                setError(null);
+              }}
+              placeholder="例: party-parrot"
+              hint={name ? `:${name}: で使えます` : "半角英小文字・数字・ハイフン・アンダースコア"}
+              error={error}
+            />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/gif,image/jpeg,image/webp"
+              hidden
+              aria-label="絵文字の画像"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex justify-end">
+              <Button variant="primary" disabled={!file || !name || busy} onClick={() => void add()}>
+                追加する
+              </Button>
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-[12px] text-fg-muted">
+          正方形の画像（128×128px 程度、1MB まで）がおすすめです。
+        </p>
+      </div>
+      {!list ? (
+        <div className="flex justify-center p-4">
+          <Spinner />
+        </div>
+      ) : list.length === 0 ? (
+        <p className="py-4 text-center text-[14px] text-fg-muted">まだカスタム絵文字はありません。</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {list.map((e) => (
+            <li key={e.name} className="flex items-center gap-3 px-3 py-2">
+              <img src={e.url} alt="" className="h-7 w-7 object-contain" />
+              <span className="flex-1 font-mono text-[14px]">:{e.name}:</span>
+              <span className="text-[12px] text-fg-muted">{members[e.createdBy]?.displayName}</span>
+              {(e.createdBy === meId || role !== "member") && (
+                <button
+                  type="button"
+                  className="text-[13px] text-danger hover:underline"
+                  onClick={async () => {
+                    try {
+                      const r = await api.deleteEmoji(wid, e.name);
+                      set({ customEmoji: Object.fromEntries(r.emoji.map((x) => [x.name, x.url])) });
+                    } catch (err) {
+                      reportError(err);
+                    }
+                  }}
+                >
+                  削除
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </Modal>
   );
 }
