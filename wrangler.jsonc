@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kaiwa",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "observability": { "enabled": true },
+  "assets": {
+    // The SPA is served from Workers Static Assets; /api/* always hits the Worker first.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kaiwa-db",
+      // Replace with the id printed by `wrangler d1 create kaiwa-db` (see README).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "kaiwa-files"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "WORKSPACE_HUB", "class_name": "WorkspaceHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceHub"] }],
+  "vars": {
+    "APP_NAME": "Kaiwa"
+  }
+}
