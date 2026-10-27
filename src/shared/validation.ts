@@ -107,6 +107,19 @@ export const updateScheduledSchema = z
   })
   .partial();
 
+const MAX_REMIND_AHEAD = 366 * 24 * 60 * 60 * 1000;
+
+export const saveItemSchema = z.object({
+  completed: z.boolean().optional(),
+  remindAt: z
+    .number()
+    .int()
+    .refine((t) => t > Date.now() - 60_000, "リマインダーは現在より後の時刻を指定してください")
+    .refine((t) => t < Date.now() + MAX_REMIND_AHEAD, "リマインダーは1年以内にしてください")
+    .nullable()
+    .optional(),
+});
+
 export const editMessageSchema = z.object({
   text: z.string().min(1).max(LIMITS.messageLength),
 });

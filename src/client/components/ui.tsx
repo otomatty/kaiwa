@@ -242,30 +242,39 @@ export function Popover({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useLayoutEffect(() => {
+    const place = () => {
+      const el = ref.current;
+      const rect = anchor instanceof DOMRect ? anchor : anchor.current?.getBoundingClientRect();
+      if (!el || !rect) return;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let top = 0;
+      let left = 0;
+      if (placement.startsWith("bottom")) {
+        top = rect.bottom + offset;
+        if (top + h > vh - 8 && rect.top - offset - h > 8) top = rect.top - offset - h;
+      } else if (placement.startsWith("top")) {
+        top = rect.top - offset - h;
+        if (top < 8) top = rect.bottom + offset;
+      } else {
+        top = rect.top;
+      }
+      if (placement === "right-start") left = rect.right + offset;
+      else if (placement === "left-start") left = rect.left - offset - w;
+      else left = placement.endsWith("end") ? rect.right - w : rect.left;
+      left = Math.max(8, Math.min(left, vw - w - 8));
+      top = Math.max(8, Math.min(top, vh - h - 8));
+      setPos({ top, left });
+    };
+    place();
+    // Re-place when the content changes size (e.g. a menu switching to a sub-view).
     const el = ref.current;
-    const rect = anchor instanceof DOMRect ? anchor : anchor.current?.getBoundingClientRect();
-    if (!el || !rect) return;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let top = 0;
-    let left = 0;
-    if (placement.startsWith("bottom")) {
-      top = rect.bottom + offset;
-      if (top + h > vh - 8 && rect.top - offset - h > 8) top = rect.top - offset - h;
-    } else if (placement.startsWith("top")) {
-      top = rect.top - offset - h;
-      if (top < 8) top = rect.bottom + offset;
-    } else {
-      top = rect.top;
-    }
-    if (placement === "right-start") left = rect.right + offset;
-    else if (placement === "left-start") left = rect.left - offset - w;
-    else left = placement.endsWith("end") ? rect.right - w : rect.left;
-    left = Math.max(8, Math.min(left, vw - w - 8));
-    top = Math.max(8, Math.min(top, vh - h - 8));
-    setPos({ top, left });
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [anchor, placement, offset]);
 
   useEffect(() => {

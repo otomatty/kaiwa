@@ -2,6 +2,7 @@ import type { Channel, Message, MyChannel, Reaction } from "../../shared/types";
 import { ApiError, api } from "../lib/api";
 import { encodeLinks, encodeMentions } from "../lib/compose";
 import { rememberEmoji } from "../lib/emoji";
+import { formatWhen } from "../lib/format";
 import { navigate, routes } from "../lib/router";
 import {
   type ChannelMessages,
@@ -56,6 +57,7 @@ export async function bootWorkspace(wid: string) {
       directory,
       presence: b.online,
       unreadThreads: b.unreadThreads,
+      remindersDue: b.remindersDue,
       customEmoji: Object.fromEntries(b.customEmoji.map((e) => [e.name, e.url])),
     });
     void loadScheduled();
@@ -119,6 +121,7 @@ export async function resync() {
         members: Object.fromEntries(b.members.map((m) => [m.id, m])),
         presence: b.online,
         unreadThreads: b.unreadThreads,
+        remindersDue: b.remindersDue,
         customEmoji: Object.fromEntries(b.customEmoji.map((e) => [e.name, e.url])),
         workspace: b.workspace,
         role: b.role,
@@ -557,13 +560,38 @@ export async function toggleSaved(id: string) {
   if (!m) return;
   patchMessage(id, { saved: !m.saved });
   try {
-    if (m.saved) await api.unsave(id);
-    else await api.save(id);
+    const r = m.saved ? await api.unsave(id) : await api.save(id);
     toast(m.saved ? "「後で」から削除しました" : "「後で」に保存しました");
-    set((s) => ({ activityVersion: s.activityVersion + 1 }));
+    set((s) => ({ activityVersion: s.activityVersion + 1, remindersDue: r.remindersDue }));
   } catch (err) {
     patchMessage(id, { saved: m.saved });
     reportError(err);
+  }
+}
+
+/** Saves the message for later (if needed) and sets or clears its reminder. */
+export async function setReminder(id: string, remindAt: number | null): Promise<boolean> {
+  try {
+    const r = await api.save(id, { remindAt });
+    patchMessage(id, { saved: true });
+    set((s) => ({ activityVersion: s.activityVersion + 1, remindersDue: r.remindersDue }));
+    toast(remindAt ? `${formatWhen(remindAt)}にリマインドします` : "リマインダーを削除しました");
+    return true;
+  } catch (err) {
+    reportError(err);
+    return false;
+  }
+}
+
+/** Marks a saved item completed (or back in progress). */
+export async function completeSaved(id: string, completed: boolean): Promise<boolean> {
+  try {
+    const r = await api.save(id, { completed });
+    set({ remindersDue: r.remindersDue });
+    return true;
+  } catch (err) {
+    reportError(err);
+    return false;
   }
 }
 

@@ -1,15 +1,16 @@
-import { AtSign, Bookmark, Check, MessageSquareText, RotateCcw, SmilePlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlarmClock, AtSign, Bookmark, Check, MessageSquareText, RotateCcw, SmilePlus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toPlainText } from "../../shared/mrkdwn";
 import type { ActivityItem, SavedItem } from "../../shared/types";
 import { api } from "../lib/api";
 import { emojify } from "../lib/emoji";
-import { formatRelative } from "../lib/format";
+import { formatRelative, formatWhen } from "../lib/format";
 import { navigate } from "../lib/router";
-import { openThread, reportError, upsertMessages } from "../store/actions";
+import { completeSaved, openThread, reportError, setReminder, upsertMessages } from "../store/actions";
 import { channelLabel, displayName, get, set, useStore } from "../store/store";
 import { Emoji } from "./MessageText";
-import { Avatar, cx, Spinner } from "./ui";
+import { ReminderPicker } from "./SchedulePicker";
+import { Avatar, cx, Popover, Spinner } from "./ui";
 
 function useChannelName() {
   const meId = useStore((s) => s.me?.id);
@@ -184,11 +185,15 @@ export function SavedList({ dark }: { dark?: boolean }) {
   const members = useStore((s) => s.members);
   const channelName = useChannelName();
 
+  // Only show the spinner when switching tabs; background refreshes keep the list in place.
+  const shownKey = useRef("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: refetch on version
   useEffect(() => {
     if (!wid) return;
     let cancelled = false;
-    setItems(null);
+    const key = `${wid}:${tab}`;
+    if (shownKey.current !== key) setItems(null);
+    shownKey.current = key;
     api
       .saved(wid, tab === "done")
       .then((r) => {
@@ -203,12 +208,8 @@ export function SavedList({ dark }: { dark?: boolean }) {
   }, [wid, tab, version]);
 
   const complete = async (i: SavedItem, done: boolean) => {
-    try {
-      await api.save(i.message.id, done);
+    if (await completeSaved(i.message.id, done))
       setItems((list) => (list ? list.filter((x) => x.message.id !== i.message.id) : list));
-    } catch (err) {
-      reportError(err);
-    }
   };
 
   return (
@@ -260,7 +261,7 @@ export function SavedList({ dark }: { dark?: boolean }) {
             <li
               key={i.message.id}
               className={cx(
-                "group/saved flex gap-3 px-4 py-3",
+                "group/saved relative flex gap-3 px-4 py-3",
                 dark
                   ? "border-white/10 border-b hover:bg-sidebar-hover"
                   : "border-line border-b hover:bg-bg-soft",
@@ -276,6 +277,7 @@ export function SavedList({ dark }: { dark?: boolean }) {
                   <span className={cx("block text-[12px]", dark ? "opacity-75" : "text-fg-muted")}>
                     {channelName(i.message.channelId)} · {formatRelative(i.savedAt)}に保存
                   </span>
+                  {i.remindAt && tab === "open" && <ReminderLabel at={i.remindAt} dark={dark} />}
                   <span className={cx("block font-bold text-[14px]", dark && "text-sidebar-strong")}>
                     {displayName(i.message.userId)}
                   </span>
@@ -284,22 +286,97 @@ export function SavedList({ dark }: { dark?: boolean }) {
                   </span>
                 </span>
               </button>
-              <button
-                type="button"
-                title={tab === "open" ? "完了にする" : "進行中に戻す"}
-                aria-label={tab === "open" ? "完了にする" : "進行中に戻す"}
-                onClick={() => void complete(i, tab === "open")}
+              <div
                 className={cx(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
-                  dark ? "border-white/30 hover:bg-white/15" : "border-line-strong hover:bg-bg-muted",
+                  "flex shrink-0 items-start gap-1.5",
+                  // In the narrow sidebar the actions float over the item on hover/focus,
+                  // so the message text keeps the full width.
+                  dark &&
+                    "absolute top-2.5 right-3 rounded-full bg-sidebar-hover p-0.5 opacity-0 group-hover/saved:opacity-100 focus-within:opacity-100",
                 )}
               >
-                {tab === "open" ? <Check size={14} /> : <RotateCcw size={14} />}
-              </button>
+                {tab === "open" && <ReminderButton item={i} dark={dark} />}
+                <button
+                  type="button"
+                  title={tab === "open" ? "完了にする" : "進行中に戻す"}
+                  aria-label={tab === "open" ? "完了にする" : "進行中に戻す"}
+                  onClick={() => void complete(i, tab === "open")}
+                  className={cx(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+                    dark ? "border-white/30 hover:bg-white/15" : "border-line-strong hover:bg-bg-muted",
+                  )}
+                >
+                  {tab === "open" ? <Check size={14} /> : <RotateCcw size={14} />}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function ReminderLabel({ at, dark }: { at: number; dark?: boolean }) {
+  // Re-render once the reminder time passes so the label turns into "overdue".
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const wait = at - Date.now();
+    if (wait <= 0 || wait > 2 ** 31 - 1) return;
+    const t = setTimeout(() => setNow(Date.now()), wait + 500);
+    return () => clearTimeout(t);
+  }, [at]);
+  const overdue = at <= now;
+  return (
+    <span
+      className={cx(
+        "mt-0.5 flex items-center gap-1 font-bold text-[12px]",
+        overdue ? (dark ? "text-[#ff8a8a]" : "text-danger") : dark ? "opacity-90" : "text-fg-muted",
+      )}
+    >
+      <AlarmClock size={12} aria-hidden />
+      {overdue ? `期限切れ: ${formatWhen(at)}` : `リマインダー: ${formatWhen(at)}`}
+    </span>
+  );
+}
+
+function ReminderButton({ item, dark }: { item: SavedItem; dark?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const label = item.remindAt ? "リマインダーを変更" : "リマインダーを設定";
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        title={label}
+        aria-label={label}
+        onClick={() => setOpen(true)}
+        className={cx(
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+          dark ? "border-white/30 hover:bg-white/15" : "border-line-strong hover:bg-bg-muted",
+        )}
+      >
+        <AlarmClock size={14} />
+      </button>
+      {open && (
+        <Popover anchor={ref} onClose={() => setOpen(false)} placement="bottom-end" className="w-72 py-2">
+          <ReminderPicker
+            onPick={(ts) => {
+              setOpen(false);
+              void setReminder(item.message.id, ts);
+            }}
+            onClear={
+              item.remindAt
+                ? () => {
+                    setOpen(false);
+                    void setReminder(item.message.id, null);
+                  }
+                : undefined
+            }
+          />
+        </Popover>
+      )}
+    </>
   );
 }

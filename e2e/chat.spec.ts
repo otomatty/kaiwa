@@ -297,3 +297,31 @@ test("schedule a message, review it and send it now", async ({ browser }) => {
   await expect(message(B, "明日の朝に送るお知らせ")).toBeVisible();
   await expect(A.getByText("予約済みのメッセージが 1 件あります。")).toHaveCount(0);
 });
+
+test("set a reminder on a message and get reminded", async ({ browser }) => {
+  const aoi = await newUser(browser, "青井");
+  const ren = await newUser(browser, "佐藤");
+  await setupWorkspace(aoi, ren);
+  const A = aoi.page;
+  const B = ren.page;
+  await send(B, "金曜までに見積もりをお願いします");
+  await message(A, "金曜までに見積もりをお願いします").hover();
+  await A.getByRole("button", { name: "その他" }).click();
+  await A.getByRole("menuitem", { name: "リマインダーを設定…" }).click();
+  await A.getByRole("menuitem", { name: /20分後/ }).click();
+  await expect(A.getByText(/にリマインドします/)).toBeVisible();
+
+  // It shows up under "Later" with the reminder time
+  await A.getByRole("button", { name: "後で", exact: true }).click();
+  await expect(A.getByText(/リマインダー: 今日|リマインダー: 明日/)).toBeVisible();
+
+  // Fire the cron as if 21 minutes had passed
+  const res = await A.request.get(`/cdn-cgi/local/scheduled?time=${Date.now() + 21 * 60_000}`);
+  expect(res.ok()).toBe(true);
+  await expect(A.getByText(/リマインダー: 佐藤「金曜までに見積もりをお願いします」/)).toBeVisible();
+  await expect(A.getByRole("button", { name: "後で（期限切れのリマインダー 1件）" })).toBeVisible();
+
+  // Completing the item clears the badge
+  await A.getByRole("button", { name: "完了にする" }).click();
+  await expect(A.getByRole("button", { name: "後で", exact: true })).toBeVisible();
+});

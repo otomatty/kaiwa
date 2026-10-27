@@ -7,13 +7,15 @@ import {
   markReadSchema,
   postMessageSchema,
   reactionSchema,
+  saveItemSchema,
 } from "../../shared/validation";
 import { channelMemberIds, isAdmin, requireChannel, requireMessage } from "../lib/access";
 import { requireAuth } from "../lib/auth";
 import type { AppEnv } from "../lib/context";
-import { badRequest, forbidden, notFound, parseJson, placeholders } from "../lib/http";
+import { badRequest, forbidden, HttpError, notFound, parseJson, placeholders } from "../lib/http";
 import { newId } from "../lib/ids";
 import { publish, type Runtime, runtime } from "../lib/realtime";
+import { publishSavedUpdated } from "../lib/reminders";
 import { hydrateMessages, hydrateOne, type MessageRow, publicMessage } from "../lib/rows";
 
 /** Users who should get a mention record for this text in this channel. */
@@ -403,35 +405,72 @@ messageRoutes.post("/:mid/save", async (c) => {
   const me = c.get("user");
   const db = c.env.DB;
   const { message } = await requireMessage(db, c.req.param("mid"), me.id);
-  let completed: boolean | undefined;
-  try {
-    const body = (await c.req.json()) as { completed?: unknown };
-    if (typeof body.completed === "boolean") completed = body.completed;
-  } catch {
-    // body is optional
+  // The body is optional: an empty POST just saves the message.
+  const raw = await c.req.text();
+  let body: unknown = {};
+  if (raw.trim()) {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      throw badRequest("JSON の形式が正しくありません", "invalid_json");
+    }
   }
-  await db
-    .prepare(
-      `INSERT INTO saved_items (user_id, message_id, created_at) VALUES (?1, ?2, ?3)
-       ON CONFLICT (user_id, message_id) DO NOTHING`,
-    )
-    .bind(me.id, message.id, Date.now())
-    .run();
+  const parsed = saveItemSchema.safeParse(body);
+  if (!parsed.success)
+    throw new HttpError(
+      422,
+      "validation_error",
+      parsed.error.issues[0]?.message ?? "入力内容が正しくありません",
+    );
+  const { completed, remindAt } = parsed.data;
+  const now = Date.now();
+  const stmts = [
+    db
+      .prepare(
+        `INSERT INTO saved_items (user_id, message_id, created_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (user_id, message_id) DO NOTHING`,
+      )
+      .bind(me.id, message.id, now),
+  ];
   if (completed !== undefined) {
-    await db
-      .prepare("UPDATE saved_items SET completed_at = ?3 WHERE user_id = ?1 AND message_id = ?2")
-      .bind(me.id, message.id, completed ? Date.now() : null)
-      .run();
+    stmts.push(
+      db
+        .prepare("UPDATE saved_items SET completed_at = ?3 WHERE user_id = ?1 AND message_id = ?2")
+        .bind(me.id, message.id, completed ? now : null),
+    );
   }
-  return c.json({ saved: true });
+  if (remindAt !== undefined) {
+    // Setting a reminder re-opens a completed item, like moving it back to "in progress".
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE saved_items SET remind_at = ?3, reminded_at = NULL,
+             completed_at = CASE WHEN ?3 IS NOT NULL AND ?4 = 0 THEN NULL ELSE completed_at END
+           WHERE user_id = ?1 AND message_id = ?2`,
+        )
+        .bind(me.id, message.id, remindAt, completed === true ? 1 : 0),
+    );
+  }
+  await db.batch(stmts);
+  const remindersDue = await publishSavedUpdated(runtime(c), me.id, message.workspace_id);
+  const row = await db
+    .prepare("SELECT remind_at FROM saved_items WHERE user_id = ?1 AND message_id = ?2")
+    .bind(me.id, message.id)
+    .first<{ remind_at: number | null }>();
+  return c.json({ saved: true, remindAt: row?.remind_at ?? null, remindersDue });
 });
 
 messageRoutes.delete("/:mid/save", async (c) => {
   const me = c.get("user");
-  await c.env.DB.prepare("DELETE FROM saved_items WHERE user_id = ?1 AND message_id = ?2")
-    .bind(me.id, c.req.param("mid"))
-    .run();
-  return c.json({ saved: false });
+  const db = c.env.DB;
+  const mid = c.req.param("mid");
+  const msg = await db
+    .prepare("SELECT workspace_id FROM messages WHERE id = ?1")
+    .bind(mid)
+    .first<{ workspace_id: string }>();
+  await db.prepare("DELETE FROM saved_items WHERE user_id = ?1 AND message_id = ?2").bind(me.id, mid).run();
+  const remindersDue = msg ? await publishSavedUpdated(runtime(c), me.id, msg.workspace_id) : 0;
+  return c.json({ saved: false, remindersDue });
 });
 
 /** "Mark unread": move the read marker to just before this message. */

@@ -21,6 +21,7 @@ import {
   openProfile,
   openThread,
   retryMessage,
+  setReminder,
   togglePin,
   toggleReaction,
   toggleSaved,
@@ -29,6 +30,7 @@ import { displayName, get, type LocalMessage, openModal, toast, useStore } from 
 import { EmojiPicker, QuickReactions } from "./EmojiPicker";
 import { LinkPreview, linksIn } from "./LinkPreview";
 import { Emoji, MessageText } from "./MessageText";
+import { ReminderPicker } from "./SchedulePicker";
 import { Avatar, Button, cx, MenuItem, MenuSeparator, Popover } from "./ui";
 
 export type MessageContext = "channel" | "thread" | "thread-root" | "preview";
@@ -310,12 +312,24 @@ function MoreMenu({
   onEdit: () => void;
 }) {
   const wid = useStore((s) => s.wid);
+  const [view, setView] = useState<"main" | "remind">("main");
   const run = (fn: () => void) => () => {
     onClose();
     fn();
   };
+  if (view === "remind") {
+    return (
+      <ReminderPicker
+        onPick={(ts) => {
+          onClose();
+          void setReminder(m.id, ts);
+        }}
+      />
+    );
+  }
   return (
     <div role="menu">
+      <MenuItem onClick={() => setView("remind")}>リマインダーを設定…</MenuItem>
       {isMember && (
         <MenuItem onClick={run(() => markUnread(m.id))} hint="Alt+クリック">
           ここから未読にする

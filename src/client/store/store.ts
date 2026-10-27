@@ -83,6 +83,8 @@ export interface State {
   directory: Record<string, Channel>;
   presence: Record<string, Presence>;
   unreadThreads: number;
+  /** Saved items whose reminder fired and are not completed (badge on "Later"). */
+  remindersDue: number;
   /** Workspace custom emoji: name → image URL. */
   customEmoji: Record<string, string>;
   /** My scheduled (send-later) messages in this workspace. */
@@ -113,6 +115,7 @@ export const initialWorkspaceState = {
   directory: {},
   presence: {},
   unreadThreads: 0,
+  remindersDue: 0,
   customEmoji: {} as Record<string, string>,
   scheduled: [] as ScheduledMessage[],
   messages: {},

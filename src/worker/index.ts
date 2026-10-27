@@ -5,6 +5,7 @@ import { requireAuth, sameOrigin } from "./lib/auth";
 import type { AppEnv } from "./lib/context";
 import { HttpError } from "./lib/http";
 import { hub } from "./lib/realtime";
+import { deliverReminders } from "./lib/reminders";
 import { authRoutes, meRoutes } from "./routes/auth";
 import { channelRoutes, workspaceChannelRoutes } from "./routes/channels";
 import { emojiRoutes } from "./routes/emoji";
@@ -77,7 +78,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   /** Cron trigger: deliver scheduled messages that are due. */
-  async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(deliverDue({ env, waitUntil: (p) => ctx.waitUntil(p) }));
+  async scheduled(controller, env, ctx) {
+    const rt = { env, waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) };
+    // scheduledTime can be set ahead in local testing (/cdn-cgi/local/scheduled?time=…).
+    const now = Math.max(Date.now(), controller.scheduledTime);
+    ctx.waitUntil(Promise.all([deliverDue(rt, now), deliverReminders(rt, now)]));
   },
 } satisfies ExportedHandler<Env>;

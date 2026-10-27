@@ -35,6 +35,17 @@ export function formatDay(ts: number, now = Date.now()): string {
     : dayYearFmt.format(ts);
 }
 
+/** A point in time near now: "今日 18:00", "明日 9:00", "10月30日(金) 9:00". */
+export function formatWhen(ts: number, now = Date.now()): string {
+  const day = startOfDay(ts);
+  const today = startOfDay(now);
+  const time = formatTime(ts);
+  if (day === today) return `今日 ${time}`;
+  if (day === today + 86_400_000) return `明日 ${time}`;
+  if (day === today - 86_400_000) return `昨日 ${time}`;
+  return `${formatDay(ts, now)} ${time}`;
+}
+
 /** "3分前", "昨日", "4月3日" style relative label for lists. */
 export function formatRelative(ts: number, now = Date.now()): string {
   const diff = now - ts;

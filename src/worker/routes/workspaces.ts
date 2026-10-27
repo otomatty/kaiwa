@@ -8,6 +8,7 @@ import type { AppEnv } from "../lib/context";
 import { badRequest, forbidden, notFound, parseJson } from "../lib/http";
 import { newId, pickColor, randomCode } from "../lib/ids";
 import { hub, publish } from "../lib/realtime";
+import { countDueReminders } from "../lib/reminders";
 import { hydrateOne, toMember, toWorkspace, type UserRow, type WorkspaceRow } from "../lib/rows";
 import { listCustomEmoji } from "./emoji";
 
@@ -178,6 +179,7 @@ workspaceRoutes.get("/:wid/bootstrap", async (c) => {
     channels,
     online,
     unreadThreads: (unread?.results[0] as { n: number } | undefined)?.n ?? 0,
+    remindersDue: await countDueReminders(db, me.id, wid),
   };
   return c.json(body);
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatDay, formatRelative, initials } from "./format";
+import { formatBytes, formatDay, formatRelative, formatWhen, initials } from "./format";
 
 describe("format", () => {
   it("formats days relative to today", () => {
@@ -14,6 +14,13 @@ describe("format", () => {
     const now = new Date(2026, 9, 27, 15, 0).getTime();
     expect(formatRelative(now - 10_000, now)).toBe("たった今");
     expect(formatRelative(now - 5 * 60_000, now)).toBe("5分前");
+  });
+
+  it("formats nearby points in time", () => {
+    const now = new Date(2026, 9, 27, 15, 0).getTime();
+    expect(formatWhen(new Date(2026, 9, 27, 18, 0).getTime(), now)).toBe("今日 18:00");
+    expect(formatWhen(new Date(2026, 9, 28, 9, 0).getTime(), now)).toBe("明日 9:00");
+    expect(formatWhen(new Date(2026, 9, 30, 9, 30).getTime(), now)).toMatch(/^10月30日.* 9:30$/);
   });
 
   it("formats byte sizes", () => {

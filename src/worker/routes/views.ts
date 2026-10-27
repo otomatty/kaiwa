@@ -209,19 +209,20 @@ viewRoutes.get("/:wid/saved", async (c) => {
   const completed = c.req.query("state") === "completed";
   const { results } = await db
     .prepare(
-      `SELECT m.*, s.created_at AS saved_at, s.completed_at AS s_completed FROM saved_items s
+      `SELECT m.*, s.created_at AS saved_at, s.completed_at AS s_completed, s.remind_at AS s_remind FROM saved_items s
        JOIN messages m ON m.id = s.message_id JOIN channels c ON c.id = m.channel_id
        WHERE s.user_id = ?1 AND m.workspace_id = ?2 AND m.deleted_at IS NULL AND ${READABLE}
          AND s.completed_at IS ${completed ? "NOT NULL" : "NULL"}
        ORDER BY s.created_at DESC LIMIT 100`,
     )
     .bind(me.id, wid)
-    .all<MessageRow & { saved_at: number; s_completed: number | null }>();
+    .all<MessageRow & { saved_at: number; s_completed: number | null; s_remind: number | null }>();
   const messages = await hydrateMessages(db, results, me.id);
   const items: SavedItem[] = results.map((r, i) => ({
     message: messages[i] as Message,
     savedAt: r.saved_at,
     completedAt: r.s_completed,
+    remindAt: r.s_remind,
   }));
   return c.json({ items });
 });

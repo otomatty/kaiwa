@@ -197,9 +197,9 @@ export const api = {
     del<{ reactions: Reaction[] }>(`/messages/${mid}/reactions/${encodeURIComponent(emoji)}`),
   pin: (mid: string) => post<{ pinned: boolean }>(`/messages/${mid}/pin`),
   unpin: (mid: string) => del<{ pinned: boolean }>(`/messages/${mid}/pin`),
-  save: (mid: string, completed?: boolean) =>
-    post<{ saved: boolean }>(`/messages/${mid}/save`, completed === undefined ? {} : { completed }),
-  unsave: (mid: string) => del<{ saved: boolean }>(`/messages/${mid}/save`),
+  save: (mid: string, opts: { completed?: boolean; remindAt?: number | null } = {}) =>
+    post<{ saved: boolean; remindAt: number | null; remindersDue: number }>(`/messages/${mid}/save`, opts),
+  unsave: (mid: string) => del<{ saved: boolean; remindersDue: number }>(`/messages/${mid}/save`),
   markUnread: (mid: string) => post<{ lastReadAt: number }>(`/messages/${mid}/unread`),
   threadRead: (rid: string, ts: number) => post<{ ok: true }>(`/threads/${rid}/read`, { ts }),
   follow: (rid: string, on: boolean) =>

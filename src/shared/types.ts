@@ -197,6 +197,8 @@ export interface SavedItem {
   message: Message;
   savedAt: number;
   completedAt: number | null;
+  /** When a reminder is (or was) due for this item. */
+  remindAt: number | null;
 }
 
 export interface SearchResult {
@@ -218,6 +220,8 @@ export interface Bootstrap {
   channels: MyChannel[];
   online: Record<string, Presence>;
   unreadThreads: number;
+  /** Saved items whose reminder has fired and that are not completed yet. */
+  remindersDue: number;
 }
 
 export interface Me {
@@ -254,6 +258,8 @@ export type ServerEvent =
   | { type: "workspace.updated"; workspace: Workspace }
   | { type: "emoji.updated"; emoji: CustomEmoji[] }
   | { type: "scheduled.updated" }
+  | { type: "saved.updated"; remindersDue: number }
+  | { type: "reminder.due"; item: SavedItem; remindersDue: number }
   | { type: "presence"; userId: string; presence: Presence }
   | { type: "typing"; channelId: string; threadRootId: string | null; userId: string };
 

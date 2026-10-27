@@ -1,5 +1,5 @@
 import { toPlainText } from "../../shared/mrkdwn";
-import type { ClientEvent, Message, ServerEvent } from "../../shared/types";
+import type { ClientEvent, Message, SavedItem, ServerEvent } from "../../shared/types";
 import { emojify } from "../lib/emoji";
 import { navigate } from "../lib/router";
 import {
@@ -151,6 +151,35 @@ function notify(m: Message) {
     window.focus();
     const wid = get().wid;
     if (wid) navigate(`/w/${wid}/c/${m.channelId}?msg=${m.id}`);
+    n.close();
+  };
+}
+
+/** A saved item's reminder fired: show it in-app and as a desktop notification. */
+function remind(item: SavedItem) {
+  const s = get();
+  const m = item.message;
+  const text = emojify(
+    toPlainText(m.text, {
+      user: displayName,
+      channel: (id) => s.directory[id]?.name ?? "channel",
+    }),
+  );
+  const preview = text.length > 60 ? `${text.slice(0, 60)}…` : text || "（ファイル）";
+  toast(`リマインダー: ${displayName(m.userId)}「${preview}」`);
+  const me = s.me;
+  if (me?.dndUntil && me.dndUntil > Date.now()) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  if (localStorage.getItem("kaiwa:notifications") === "off") return;
+  const n = new Notification("リマインダー", {
+    body: `${displayName(m.userId)}: ${preview}`,
+    tag: `reminder:${m.id}`,
+    icon: "/favicon.svg",
+  });
+  n.onclick = () => {
+    window.focus();
+    const wid = get().wid;
+    if (wid) navigate(`/w/${wid}/later`);
     n.close();
   };
 }
@@ -322,6 +351,13 @@ function handle(e: ServerEvent) {
       return;
     case "scheduled.updated":
       void loadScheduled();
+      return;
+    case "saved.updated":
+      set((st) => ({ remindersDue: e.remindersDue, activityVersion: st.activityVersion + 1 }));
+      return;
+    case "reminder.due":
+      set((st) => ({ remindersDue: e.remindersDue, activityVersion: st.activityVersion + 1 }));
+      remind(e.item);
       return;
     case "emoji.updated":
       set({ customEmoji: Object.fromEntries(e.emoji.map((x) => [x.name, x.url])) });

@@ -73,6 +73,7 @@ export function WorkspaceRail() {
   const me = useStore((s) => s.me);
   const channels = useStore((s) => s.channels);
   const unreadThreads = useStore((s) => s.unreadThreads);
+  const remindersDue = useStore((s) => s.remindersDue);
   const presence = usePresence(me?.id);
   const [menu, setMenu] = useState(false);
   const meRef = useRef<HTMLButtonElement>(null);
@@ -91,7 +92,7 @@ export function WorkspaceRail() {
     { id: "home", label: "ホーム", icon: <House size={20} />, badge: mentions || undefined, dot: homeUnread },
     { id: "dms", label: "DM", icon: <MessagesSquare size={20} />, badge: dmBadge || undefined },
     { id: "activity", label: "アクティビティ", icon: <Bell size={20} />, badge: unreadThreads || undefined },
-    { id: "later", label: "後で", icon: <Bookmark size={20} /> },
+    { id: "later", label: "後で", icon: <Bookmark size={20} />, badge: remindersDue || undefined },
   ];
 
   return (
@@ -135,7 +136,11 @@ export function WorkspaceRail() {
             type="button"
             onClick={() => set({ sidebarTab: t.id, mobileSidebar: true })}
             aria-label={
-              t.badge ? `${t.label}（未読 ${t.badge}件）` : t.dot ? `${t.label}（新着あり）` : t.label
+              t.badge
+                ? `${t.label}（${t.id === "later" ? "期限切れのリマインダー" : "未読"} ${t.badge}件）`
+                : t.dot
+                  ? `${t.label}（新着あり）`
+                  : t.label
             }
             className="group flex w-[76px] flex-col items-center gap-0.5 py-1 text-[10px] tracking-tight whitespace-nowrap"
             aria-current={tab === t.id ? "page" : undefined}
