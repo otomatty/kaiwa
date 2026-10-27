@@ -59,6 +59,12 @@ describe("realtime", () => {
       }),
     );
     expect(r.status).toBe(404);
+    const crossSite = await exports.default.fetch(
+      new Request(`http://kaiwa.test/api/workspaces/${wid}/ws`, {
+        headers: { Upgrade: "websocket", Cookie: owner.cookie, Origin: "https://evil.example" },
+      }),
+    );
+    expect(crossSite.status).toBe(403);
   });
 
   it("delivers presence, messages, reactions and typing to channel members only", async () => {

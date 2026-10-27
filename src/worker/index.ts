@@ -41,6 +41,9 @@ app.route("/workspaces", fileUploadRoutes);
 
 app.get("/workspaces/:wid/ws", requireAuth, async (c) => {
   if (c.req.header("Upgrade") !== "websocket") return c.text("Expected WebSocket", 426);
+  // Block cross-site WebSocket hijacking: browsers always send Origin on WS handshakes.
+  const origin = c.req.header("Origin");
+  if (origin && new URL(origin).host !== new URL(c.req.url).host) return c.text("Forbidden origin", 403);
   const me = c.get("user");
   const wid = c.req.param("wid");
   await requireWorkspace(c.env.DB, wid, me.id);

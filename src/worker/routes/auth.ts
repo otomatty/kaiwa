@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { loginSchema, signupSchema, updateProfileSchema } from "../../shared/validation";
 import { createSession, destroySession, loadSessionUser, requireAuth } from "../lib/auth";
 import type { AppEnv } from "../lib/context";
@@ -11,7 +11,19 @@ import { listMyWorkspaces } from "./workspaces";
 
 export const authRoutes = new Hono<AppEnv>();
 
+function clientIp(c: Context<AppEnv>): string {
+  return c.req.header("CF-Connecting-IP") ?? "local";
+}
+
+async function rateLimit(limiter: RateLimit | undefined, key: string) {
+  if (!limiter) return;
+  const { success } = await limiter.limit({ key });
+  if (!success)
+    throw new HttpError(429, "rate_limited", "試行回数が多すぎます。しばらくしてからもう一度お試しください");
+}
+
 authRoutes.post("/signup", async (c) => {
+  await rateLimit(c.env.SIGNUP_LIMITER, `signup:${clientIp(c)}`);
   const body = await parseJson(c, signupSchema);
   const existing = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?1").bind(body.email).first();
   if (existing) throw conflict("このメールアドレスは既に登録されています", "email_taken");
@@ -30,6 +42,7 @@ authRoutes.post("/signup", async (c) => {
 
 authRoutes.post("/login", async (c) => {
   const body = await parseJson(c, loginSchema);
+  await rateLimit(c.env.LOGIN_LIMITER, `login:${clientIp(c)}:${body.email}`);
   const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?1")
     .bind(body.email)
     .first<UserRow>();

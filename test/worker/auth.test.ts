@@ -84,3 +84,23 @@ describe("auth", () => {
     expect(expired.body.user.statusText).toBe("");
   });
 });
+
+describe("rate limiting", () => {
+  it("throttles repeated failed sign-ins for the same account", async () => {
+    const c = await signup("victim");
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const r = await new Client().req(
+        "POST",
+        "/auth/login",
+        { email: c.user.email, password: "nope-nope" },
+        {
+          "CF-Connecting-IP": "203.0.113.9",
+        },
+      );
+      statuses.push(r.status);
+    }
+    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
+    expect(statuses.at(-1)).toBe(429);
+  });
+});

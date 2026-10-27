@@ -30,6 +30,11 @@
     "bindings": [{ "name": "WORKSPACE_HUB", "class_name": "WorkspaceHub" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceHub"] }],
+  // Brute-force protection for sign-in / sign-up (per Cloudflare location, approximate).
+  "ratelimits": [
+    { "name": "LOGIN_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } },
+    { "name": "SIGNUP_LIMITER", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
+  ],
   "vars": {
     "APP_NAME": "Kaiwa"
   }
