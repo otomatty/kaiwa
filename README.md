@@ -51,6 +51,7 @@ e2e/        Playwright による2ユーザー同時操作の E2E テスト
 必要なもの: Node.js 22 以上、pnpm 10。
 
 ```bash
+git clone https://github.com/otomatty/kaiwa.git && cd kaiwa
 pnpm install
 pnpm db:migrate:local      # ローカル D1 にスキーマを適用
 pnpm dev                   # http://localhost:5173
@@ -80,6 +81,8 @@ E2E を初めて動かすときは `pnpm exec playwright install chromium` を�
 2. **e2e**: Playwright で E2E テスト（失敗時はレポートとトレースを保存）
 3. **preview**（Pull Request）: `wrangler versions upload --preview-alias pr-<番号>` でプレビュー版を作り、URL を PR にコメント
 4. **deploy**（main への push）: D1 マイグレーションを本番に適用してから `wrangler deploy`。リポジトリ変数 `PRODUCTION_URL` があればヘルスチェック
+
+Cloudflare の設定（下記の 1・2）がまだ何もされていない間は、preview と deploy は警告を出してスキップします（CI は失敗しません）。設定が一部だけの場合は、足りない項目を表示して失敗します。
 
 ## Cloudflare へのデプロイ
 
