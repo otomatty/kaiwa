@@ -1,6 +1,7 @@
 import {
   AtSign,
   CheckCheck,
+  Clock,
   FileText,
   Hash,
   Inbox,
@@ -13,15 +14,24 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { FileInfo, SearchResult, ThreadSummary } from "../../shared/types";
 import { api } from "../lib/api";
+import { decodeMentions } from "../lib/compose";
 import { formatBytes, formatRelative } from "../lib/format";
 import { navigate, routes, useSearchParams } from "../lib/router";
 import { parseSearchQuery, searchTerms } from "../lib/search";
-import { markChannelRead, openProfile, openThread, reportError, upsertMessages } from "../store/actions";
+import {
+  loadScheduled,
+  markChannelRead,
+  openProfile,
+  openThread,
+  reportError,
+  upsertMessages,
+} from "../store/actions";
 import { channelLabel, get, set, useStore } from "../store/store";
 import { Composer } from "./Composer";
 import { ActivityList, SavedList } from "./Lists";
 import { MessageItem, MessagePreview } from "./Message";
-import { HighlightContext } from "./MessageText";
+import { HighlightContext, MessageText as MessageTextBlock } from "./MessageText";
+import { formatScheduleTime } from "./SchedulePicker";
 import { Avatar, Button, cx, PresenceDot, Spinner, usePresence } from "./ui";
 
 function ViewHeader({
@@ -173,6 +183,8 @@ export function DraftsView() {
   const wid = useStore((s) => s.wid) as string;
   const channels = useStore((s) => s.channels);
   const meId = useStore((s) => s.me?.id);
+  const scheduled = useStore((s) => s.scheduled);
+  const tab = useSearchParams().get("tab") === "scheduled" ? "scheduled" : "drafts";
   const [drafts, setDrafts] = useState<{ key: string; cid: string; rootId?: string; text: string }[]>([]);
   useEffect(() => {
     const read = () => {
@@ -195,10 +207,36 @@ export function DraftsView() {
   }, [channels]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ViewHeader icon={<Pencil size={18} />} title="下書き" />
+      <ViewHeader icon={<Pencil size={18} />} title="下書きと予約" />
+      <div className="flex gap-4 border-line border-b px-5" role="tablist">
+        {(
+          [
+            ["drafts", `下書き ${drafts.length || ""}`],
+            ["scheduled", `予約済み ${scheduled.length || ""}`],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() =>
+              navigate(`/w/${wid}/drafts${id === "scheduled" ? "?tab=scheduled" : ""}`, { replace: true })
+            }
+            className={cx(
+              "-mb-px border-b-2 px-1 py-2 text-[14px]",
+              tab === id ? "border-primary font-bold" : "border-transparent text-fg-muted hover:text-fg",
+            )}
+          >
+            {label.trim()}
+          </button>
+        ))}
+      </div>
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[760px] p-5">
-          {drafts.length === 0 ? (
+          {tab === "scheduled" ? (
+            <ScheduledList />
+          ) : drafts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center text-fg-muted">
               <Pencil size={30} />
               <p className="font-bold text-[17px] text-fg">下書きはありません</p>
@@ -247,6 +285,147 @@ export function DraftsView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ScheduledList() {
+  const scheduled = useStore((s) => s.scheduled);
+  const channels = useStore((s) => s.channels);
+  const directory = useStore((s) => s.directory);
+  const meId = useStore((s) => s.me?.id);
+  const wid = useStore((s) => s.wid) as string;
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ text: "", when: "" });
+  if (scheduled.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-16 text-center text-fg-muted">
+        <Clock size={30} />
+        <p className="font-bold text-[17px] text-fg">予約済みのメッセージはありません</p>
+        <p>メッセージ入力欄の送信ボタン横の ▾ から、送信日時を指定できます。</p>
+      </div>
+    );
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toLocal = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  return (
+    <ul
+      className="divide-y divide-line overflow-hidden rounded-lg border border-line"
+      data-testid="scheduled-list"
+    >
+      {scheduled.map((s) => {
+        const ch = channels[s.channelId] ?? directory[s.channelId];
+        const where = ch
+          ? ch.kind === "dm" || ch.kind === "group"
+            ? channelLabel(ch, meId)
+            : `#${ch.name}`
+          : "";
+        return (
+          <li key={s.id} className="bg-bg px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-[13px] text-fg-muted">
+              <span className="flex items-center gap-1.5">
+                <Clock size={13} /> {formatScheduleTime(s.sendAt)} に {where}
+                {s.threadRootId ? "（スレッド）" : ""} へ送信
+              </span>
+            </div>
+            {s.error && <p className="mt-1 text-[13px] text-danger">送信できませんでした: {s.error}</p>}
+            {editing === s.id ? (
+              <form
+                className="mt-2 space-y-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await api.updateScheduled(s.id, {
+                      text: draft.text,
+                      sendAt: new Date(draft.when).getTime(),
+                    });
+                    setEditing(null);
+                    await loadScheduled();
+                  } catch (err) {
+                    reportError(err);
+                  }
+                }}
+              >
+                <textarea
+                  value={draft.text}
+                  onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+                  rows={3}
+                  aria-label="予約メッセージ"
+                  className="w-full rounded-md border border-line-strong bg-bg px-3 py-2 text-[14px]"
+                />
+                <input
+                  type="datetime-local"
+                  value={draft.when}
+                  onChange={(e) => setDraft({ ...draft, when: e.target.value })}
+                  aria-label="送信日時"
+                  className="h-9 rounded-md border border-line-strong bg-bg px-2 text-[14px]"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button className="h-8" onClick={() => setEditing(null)}>
+                    キャンセル
+                  </Button>
+                  <Button type="submit" variant="primary" className="h-8">
+                    保存
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <MessageTextBlock text={s.text} />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    className="h-7 text-[12px]"
+                    onClick={async () => {
+                      try {
+                        await api.sendScheduledNow(s.id);
+                        await loadScheduled();
+                        navigate(routes.channel(wid, s.channelId));
+                      } catch (err) {
+                        reportError(err);
+                        await loadScheduled();
+                      }
+                    }}
+                  >
+                    今すぐ送信
+                  </Button>
+                  <Button
+                    className="h-7 text-[12px]"
+                    onClick={() => {
+                      setDraft({
+                        text: decodeMentions(
+                          s.text,
+                          (id) => get().members[id]?.displayName,
+                          (id) => get().directory[id]?.name,
+                        ),
+                        when: toLocal(s.sendAt),
+                      });
+                      setEditing(s.id);
+                    }}
+                  >
+                    編集
+                  </Button>
+                  <Button
+                    className="h-7 text-[12px] text-danger"
+                    onClick={async () => {
+                      try {
+                        await api.deleteScheduled(s.id);
+                        await loadScheduled();
+                      } catch (err) {
+                        reportError(err);
+                      }
+                    }}
+                  >
+                    削除
+                  </Button>
+                </div>
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

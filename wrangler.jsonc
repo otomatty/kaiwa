@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
   "observability": { "enabled": true },
+  // Delivers scheduled messages every minute.
+  "triggers": { "crons": ["* * * * *"] },
   "assets": {
     // The SPA is served from Workers Static Assets; /api/* always hits the Worker first.
     "not_found_handling": "single-page-application",

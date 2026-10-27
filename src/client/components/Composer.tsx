@@ -1,6 +1,8 @@
 import {
   AtSign,
   Bold,
+  ChevronDown,
+  Clock,
   Code,
   FileText,
   Italic,
@@ -51,6 +53,7 @@ import {
 import { sendEvent } from "../store/realtime";
 import { channelLabel, get, toast, useStore } from "../store/store";
 import { EmojiPicker } from "./EmojiPicker";
+import { formatScheduleTime, SchedulePicker } from "./SchedulePicker";
 import { Avatar, cx, Popover } from "./ui";
 
 interface Upload {
@@ -107,6 +110,8 @@ export function Composer({
   const [selected, setSelected] = useState(0);
   const [showFormatting, setShowFormatting] = useState(true);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const scheduleBtn = useRef<HTMLButtonElement>(null);
   const [broadcast, setBroadcast] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -119,6 +124,7 @@ export function Composer({
   const members = useStore((s) => s.members);
   const directory = useStore((s) => s.directory);
   const customEmoji = useStore((s) => s.customEmoji);
+  const scheduledList = useStore((s) => s.scheduled);
 
   // Reset when switching conversations.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on conversation change
@@ -456,6 +462,32 @@ export function Composer({
     setBroadcast(false);
   };
 
+  const schedule = async (sendAt: number) => {
+    setScheduleOpen(false);
+    if (!value.trim()) return;
+    if (uploads.length > 0) {
+      toast("ファイル付きのメッセージは送信予約できません", "error");
+      return;
+    }
+    if (value.startsWith("/")) {
+      toast("コマンドは送信予約できません", "error");
+      return;
+    }
+    try {
+      await api.schedule(channelId, {
+        text: encodeOutgoing(value),
+        sendAt,
+        threadRootId: threadRootId ?? null,
+        broadcast: threadRootId ? broadcast : undefined,
+      });
+      setValue("");
+      setBroadcast(false);
+      toast(`${formatScheduleTime(sendAt)} に送信するよう予約しました`);
+    } catch (err) {
+      reportError(err);
+    }
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (token && suggestions.length > 0) {
@@ -538,8 +570,25 @@ export function Composer({
 
   const channelName = channel ? channelLabel(channel, meId) : "";
 
+  const scheduledHere = scheduledList.filter(
+    (s) => s.channelId === channelId && (s.threadRootId ?? null) === (threadRootId ?? null),
+  ).length;
+
   return (
     <div className="px-5 pb-1">
+      {scheduledHere > 0 && (
+        <div className="mb-1 flex items-center gap-2 px-1 text-[13px] text-fg-muted">
+          <Clock size={14} />
+          <span>予約済みのメッセージが {scheduledHere} 件あります。</span>
+          <button
+            type="button"
+            className="text-link hover:underline"
+            onClick={() => wid && navigate(`/w/${wid}/drafts?tab=scheduled`)}
+          >
+            表示する
+          </button>
+        </div>
+      )}
       <div
         className={cx(
           "relative rounded-lg border bg-bg transition-colors focus-within:border-fg-subtle",
@@ -737,19 +786,35 @@ export function Composer({
               }}
             />
           </div>
-          <button
-            type="button"
-            aria-label="送信"
-            title="送信 (Enter)"
-            disabled={!canSend}
-            onClick={() => void submit()}
-            className={cx(
-              "flex h-8 w-9 items-center justify-center rounded-md transition-colors",
-              canSend ? "bg-primary text-primary-fg hover:bg-primary-hover" : "text-fg-subtle",
-            )}
-          >
-            <SendHorizontal size={17} />
-          </button>
+          <div className={cx("flex items-center rounded-md", canSend && "bg-primary text-primary-fg")}>
+            <button
+              type="button"
+              aria-label="送信"
+              title="送信 (Enter)"
+              disabled={!canSend}
+              onClick={() => void submit()}
+              className={cx(
+                "flex h-8 w-9 items-center justify-center rounded-l-md transition-colors",
+                canSend ? "hover:bg-primary-hover" : "text-fg-subtle",
+              )}
+            >
+              <SendHorizontal size={17} />
+            </button>
+            <button
+              ref={scheduleBtn}
+              type="button"
+              aria-label="送信日時を指定"
+              title="送信日時を指定"
+              disabled={!canSend}
+              onClick={() => setScheduleOpen(true)}
+              className={cx(
+                "flex h-8 w-6 items-center justify-center rounded-r-md border-l transition-colors",
+                canSend ? "border-white/30 hover:bg-primary-hover" : "border-transparent text-fg-subtle",
+              )}
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex min-h-[22px] items-center justify-between gap-4 px-1 text-[12px] text-fg-muted">
@@ -769,6 +834,16 @@ export function Composer({
           )
         )}
       </div>
+      {scheduleOpen && (
+        <Popover
+          anchor={scheduleBtn}
+          onClose={() => setScheduleOpen(false)}
+          placement="top-end"
+          className="w-72 py-2"
+        >
+          <SchedulePicker onPick={(t) => void schedule(t)} />
+        </Popover>
+      )}
       {emojiOpen && (
         <Popover anchor={emojiBtn} onClose={() => setEmojiOpen(false)} placement="top-start">
           <EmojiPicker

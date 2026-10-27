@@ -12,19 +12,36 @@ export function hub(env: Env, workspaceId: string) {
  * Delivery happens after the response is sent (waitUntil) so API latency is unaffected.
  */
 export function publish(
-  c: Context<AppEnv>,
+  c: Context<AppEnv> | Runtime,
   workspaceId: string,
   events: ServerEvent | ServerEvent[],
   audience: string[] | "all",
 ): void {
+  const rt = runtime(c);
   const list = Array.isArray(events) ? events : [events];
   if (list.length === 0 || (audience !== "all" && audience.length === 0)) return;
-  const task = hub(c.env, workspaceId)
+  const task = hub(rt.env, workspaceId)
     .publish(list, audience === "all" ? null : audience)
     .catch((err: unknown) => console.error("publish failed", err));
-  try {
-    c.executionCtx.waitUntil(task);
-  } catch {
-    // No execution context (e.g. some test harnesses) – fire and forget.
-  }
+  rt.waitUntil(task);
+}
+
+/** What background work needs from a request (or a cron invocation). */
+export interface Runtime {
+  env: Env;
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+export function runtime(c: Context<AppEnv> | Runtime): Runtime {
+  if (!("req" in c)) return c;
+  return {
+    env: c.env,
+    waitUntil: (p) => {
+      try {
+        c.executionCtx.waitUntil(p);
+      } catch {
+        // No execution context (some test harnesses): fire and forget.
+      }
+    },
+  };
 }

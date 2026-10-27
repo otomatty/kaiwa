@@ -83,6 +83,30 @@ export const postMessageSchema = z
     message: "メッセージが空です",
   });
 
+const MAX_SCHEDULE_AHEAD = 120 * 24 * 60 * 60 * 1000;
+
+export const scheduleMessageSchema = z.object({
+  text: z.string().trim().min(1, "メッセージが空です").max(LIMITS.messageLength),
+  threadRootId: z.string().nullable().optional(),
+  broadcast: z.boolean().optional(),
+  sendAt: z
+    .number()
+    .int()
+    .refine((t) => t > Date.now() + 30_000, "送信日時は少し先の時刻を指定してください")
+    .refine((t) => t < Date.now() + MAX_SCHEDULE_AHEAD, "送信日時は120日以内にしてください"),
+});
+
+export const updateScheduledSchema = z
+  .object({
+    text: z.string().trim().min(1).max(LIMITS.messageLength),
+    sendAt: z
+      .number()
+      .int()
+      .refine((t) => t > Date.now() + 30_000, "送信日時は少し先の時刻を指定してください")
+      .refine((t) => t < Date.now() + MAX_SCHEDULE_AHEAD, "送信日時は120日以内にしてください"),
+  })
+  .partial();
+
 export const editMessageSchema = z.object({
   text: z.string().min(1).max(LIMITS.messageLength),
 });

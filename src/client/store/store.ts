@@ -6,6 +6,7 @@ import type {
   MyChannel,
   Presence,
   Role,
+  ScheduledMessage,
   User,
   Workspace,
   WorkspaceSummary,
@@ -84,6 +85,8 @@ export interface State {
   unreadThreads: number;
   /** Workspace custom emoji: name → image URL. */
   customEmoji: Record<string, string>;
+  /** My scheduled (send-later) messages in this workspace. */
+  scheduled: ScheduledMessage[];
 
   messages: Record<string, LocalMessage>;
   channelMsgs: Record<string, ChannelMessages>;
@@ -111,6 +114,7 @@ export const initialWorkspaceState = {
   presence: {},
   unreadThreads: 0,
   customEmoji: {} as Record<string, string>,
+  scheduled: [] as ScheduledMessage[],
   messages: {},
   channelMsgs: {},
   threads: {},

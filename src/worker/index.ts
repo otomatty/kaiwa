@@ -10,6 +10,7 @@ import { channelRoutes, workspaceChannelRoutes } from "./routes/channels";
 import { emojiRoutes } from "./routes/emoji";
 import { fileRoutes, fileUploadRoutes } from "./routes/files";
 import { messageRoutes, postMessage, threadRoutes } from "./routes/messages";
+import { deliverDue, scheduledRoutes } from "./routes/scheduled";
 import { unfurlRoutes } from "./routes/unfurl";
 import { viewRoutes } from "./routes/views";
 import { inviteRoutes, workspaceRoutes } from "./routes/workspaces";
@@ -61,6 +62,7 @@ app.route("/messages", messageRoutes);
 app.route("/threads", threadRoutes);
 app.route("/files", fileRoutes);
 app.route("/unfurl", unfurlRoutes);
+app.route("/scheduled", scheduledRoutes);
 
 app.notFound((c) => c.json({ error: "not_found", message: "Not found" }, 404));
 
@@ -72,4 +74,10 @@ app.onError((err, c) => {
   return c.json({ error: "internal", message: "サーバーでエラーが発生しました" }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** Cron trigger: deliver scheduled messages that are due. */
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(deliverDue({ env, waitUntil: (p) => ctx.waitUntil(p) }));
+  },
+} satisfies ExportedHandler<Env>;

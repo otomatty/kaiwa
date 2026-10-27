@@ -146,6 +146,19 @@ export interface Unfurl {
   image: string | null;
 }
 
+export interface ScheduledMessage {
+  id: string;
+  workspaceId: string;
+  channelId: string;
+  text: string;
+  threadRootId: string | null;
+  broadcast: boolean;
+  sendAt: number;
+  createdAt: number;
+  /** Set when delivery failed (e.g. you left the channel). */
+  error: string | null;
+}
+
 export interface Bookmark {
   id: string;
   channelId: string;
@@ -240,6 +253,7 @@ export type ServerEvent =
   | { type: "member.removed"; userId: string }
   | { type: "workspace.updated"; workspace: Workspace }
   | { type: "emoji.updated"; emoji: CustomEmoji[] }
+  | { type: "scheduled.updated" }
   | { type: "presence"; userId: string; presence: Presence }
   | { type: "typing"; channelId: string; threadRootId: string | null; userId: string };
 

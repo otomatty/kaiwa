@@ -1,4 +1,5 @@
 import { type Context, Hono } from "hono";
+import type { z } from "zod";
 import { extractMentions } from "../../shared/mrkdwn";
 import type { Message, ServerEvent, ThreadView } from "../../shared/types";
 import {
@@ -12,7 +13,7 @@ import { requireAuth } from "../lib/auth";
 import type { AppEnv } from "../lib/context";
 import { badRequest, forbidden, notFound, parseJson, placeholders } from "../lib/http";
 import { newId } from "../lib/ids";
-import { publish } from "../lib/realtime";
+import { publish, type Runtime, runtime } from "../lib/realtime";
 import { hydrateMessages, hydrateOne, type MessageRow, publicMessage } from "../lib/rows";
 
 /** Users who should get a mention record for this text in this channel. */
@@ -34,12 +35,24 @@ async function mentionTargets(
 }
 
 export async function postMessage(c: Context<AppEnv>): Promise<Response> {
-  const me = c.get("user");
-  const db = c.env.DB;
-  const cid = c.req.param("cid") as string;
+  const body = await parseJson(c, postMessageSchema);
+  const message = await createMessage(runtime(c), c.get("user").id, c.req.param("cid") as string, body);
+  return c.json({ message }, 201);
+}
+
+export type PostMessageInput = z.output<typeof postMessageSchema>;
+
+/** Creates a message as `userId` (checks access), updates threads/mentions/read state and publishes it. */
+export async function createMessage(
+  rt: Runtime,
+  userId: string,
+  cid: string,
+  body: PostMessageInput,
+): Promise<Message> {
+  const me = { id: userId };
+  const db = rt.env.DB;
   const access = await requireChannel(db, cid, me.id, { write: true });
   const ch = access.channel;
-  const body = await parseJson(c, postMessageSchema);
   const now = Date.now();
   const id = newId("M", now);
 
@@ -162,8 +175,8 @@ export async function postMessage(c: Context<AppEnv>): Promise<Response> {
     const rootDto = await publicMessage(db, root.id);
     if (rootDto) events.push({ type: "message.updated", message: rootDto });
   }
-  publish(c, ch.workspace_id, events, members);
-  return c.json({ message: dto }, 201);
+  publish(rt, ch.workspace_id, events, members);
+  return dto;
 }
 
 export const messageRoutes = new Hono<AppEnv>();

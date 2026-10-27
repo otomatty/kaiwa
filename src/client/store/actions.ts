@@ -58,6 +58,7 @@ export async function bootWorkspace(wid: string) {
       unreadThreads: b.unreadThreads,
       customEmoji: Object.fromEntries(b.customEmoji.map((e) => [e.name, e.url])),
     });
+    void loadScheduled();
     // Learn names of public channels we're not in (for #channel links).
     api
       .browseChannels(wid)
@@ -89,6 +90,17 @@ export async function bootWorkspace(wid: string) {
       .catch(() => undefined);
   } catch (err) {
     set({ bootError: err instanceof ApiError ? err.message : "読み込みに失敗しました" });
+  }
+}
+
+export async function loadScheduled() {
+  const wid = get().wid;
+  if (!wid) return;
+  try {
+    const r = await api.scheduled(wid);
+    if (get().wid === wid) set({ scheduled: r.scheduled });
+  } catch {
+    // ignore
   }
 }
 

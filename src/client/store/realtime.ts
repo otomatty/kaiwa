@@ -5,6 +5,7 @@ import { navigate } from "../lib/router";
 import {
   currentChannelId,
   dropChannel,
+  loadScheduled,
   logout,
   patchMessage,
   refreshChannel,
@@ -318,6 +319,9 @@ function handle(e: ServerEvent) {
         delete members[e.userId];
         return { members };
       });
+      return;
+    case "scheduled.updated":
+      void loadScheduled();
       return;
     case "emoji.updated":
       set({ customEmoji: Object.fromEntries(e.emoji.map((x) => [x.name, x.url])) });

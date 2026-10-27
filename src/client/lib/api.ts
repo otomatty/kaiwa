@@ -12,6 +12,7 @@ import type {
   MyChannel,
   Reaction,
   SavedItem,
+  ScheduledMessage,
   SearchResult,
   ThreadSummary,
   ThreadView,
@@ -219,6 +220,15 @@ export const api = {
   saved: (wid: string, completed = false) =>
     get<{ items: SavedItem[] }>(`/workspaces/${wid}/saved${completed ? "?state=completed" : ""}`),
   files: (wid: string) => get<{ files: FileInfo[] }>(`/workspaces/${wid}/files`),
+  schedule: (
+    cid: string,
+    b: { text: string; sendAt: number; threadRootId?: string | null; broadcast?: boolean },
+  ) => post<{ scheduled: ScheduledMessage }>(`/scheduled/channels/${cid}`, b),
+  scheduled: (wid: string) => get<{ scheduled: ScheduledMessage[] }>(`/scheduled/workspaces/${wid}`),
+  updateScheduled: (id: string, b: { text?: string; sendAt?: number }) =>
+    patch<{ scheduled: ScheduledMessage }>(`/scheduled/${id}`, b),
+  deleteScheduled: (id: string) => del<{ ok: true }>(`/scheduled/${id}`),
+  sendScheduledNow: (id: string) => post<{ ok: true }>(`/scheduled/${id}/send`),
   customEmoji: (wid: string) => get<{ emoji: CustomEmoji[] }>(`/workspaces/${wid}/emoji`),
   addEmoji: (wid: string, name: string, fileId: string) =>
     post<{ emoji: CustomEmoji[] }>(`/workspaces/${wid}/emoji`, { name, fileId }),

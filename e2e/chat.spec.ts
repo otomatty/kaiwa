@@ -275,3 +275,25 @@ test("custom emoji can be added and used in messages", async ({ browser }) => {
   await send(A, "新しいロゴです :kaiwa-logo:");
   await expect(message(B, "新しいロゴです").getByRole("img", { name: ":kaiwa-logo:" })).toBeVisible();
 });
+
+test("schedule a message, review it and send it now", async ({ browser }) => {
+  const aoi = await newUser(browser, "青井");
+  const ren = await newUser(browser, "佐藤");
+  await setupWorkspace(aoi, ren);
+  const A = aoi.page;
+  const B = ren.page;
+  await composer(A).fill("明日の朝に送るお知らせ");
+  await A.getByRole("button", { name: "送信日時を指定" }).click();
+  await A.getByRole("menuitem", { name: /明日 9:00/ }).click();
+  await expect(A.getByText(/に送信するよう予約しました/)).toBeVisible();
+  await expect(composer(A)).toHaveValue("");
+  await expect(A.getByText("予約済みのメッセージが 1 件あります。")).toBeVisible();
+  await expect(message(B, "明日の朝に送るお知らせ")).toHaveCount(0);
+
+  await A.getByRole("button", { name: "表示する" }).click();
+  const list = A.getByTestId("scheduled-list");
+  await expect(list).toContainText("明日の朝に送るお知らせ");
+  await list.getByRole("button", { name: "今すぐ送信" }).click();
+  await expect(message(B, "明日の朝に送るお知らせ")).toBeVisible();
+  await expect(A.getByText("予約済みのメッセージが 1 件あります。")).toHaveCount(0);
+});

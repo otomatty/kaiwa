@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { Bootstrap, InviteInfo, Role, ServerEvent, WorkspaceSummary } from "../../shared/types";
 import { createWorkspaceSchema, roleSchema, updateWorkspaceSchema } from "../../shared/validation";
 import { isAdmin, requireWorkspace } from "../lib/access";
@@ -37,7 +37,7 @@ async function memberRow(db: D1Database, workspaceId: string, userId: string) {
  * resulting membership + join messages to everyone connected.
  */
 async function joinWorkspace(
-  c: Parameters<typeof publish>[0],
+  c: Context<AppEnv>,
   workspaceId: string,
   userId: string,
   role: Role,
@@ -247,7 +247,7 @@ workspaceRoutes.patch("/:wid/members/:uid", async (c) => {
   return c.json({ member });
 });
 
-async function removeFromWorkspace(c: Parameters<typeof publish>[0], wid: string, uid: string) {
+async function removeFromWorkspace(c: Context<AppEnv>, wid: string, uid: string) {
   const db = c.env.DB;
   await db.batch([
     db

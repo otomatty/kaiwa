@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { Member, MessagePage, Role, ServerEvent } from "../../shared/types";
 import {
   addMembersSchema,
@@ -247,7 +247,7 @@ channelRoutes.patch("/:cid", async (c) => {
   return c.json({ channel: await getMyChannel(db, ch.id, me.id) });
 });
 
-async function broadcastChannel(c: Parameters<typeof publish>[0], channelId: string, sys: MessageRow[] = []) {
+async function broadcastChannel(c: Context<AppEnv>, channelId: string, sys: MessageRow[] = []) {
   const db = c.env.DB;
   const dto = await getChannel(db, channelId);
   if (!dto) return;
