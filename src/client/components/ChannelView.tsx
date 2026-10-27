@@ -13,6 +13,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
   const channel = useStore((s) => s.channels[channelId]);
   const [preview, setPreview] = useState<MyChannel | null>(null);
   const [missing, setMissing] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const meId = useStore((s) => s.me?.id);
 
   // Non-member preview of a public channel.
@@ -57,8 +58,38 @@ export function ChannelView({ channelId }: { channelId: string }) {
     );
   }
 
+  const canDrop = ch.isMember && !ch.archivedAt;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      onDragEnter={(e) => {
+        if (canDrop && e.dataTransfer.types.includes("Files")) setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (canDrop && e.dataTransfer.types.includes("Files")) e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node))
+          setDragging(false);
+      }}
+      onDrop={(e) => {
+        setDragging(false);
+        // The composer handles drops on itself.
+        if (e.defaultPrevented || !canDrop || e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        window.dispatchEvent(
+          new CustomEvent("kaiwa:drop-files", { detail: Array.from(e.dataTransfer.files) }),
+        );
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-xl border-2 border-link border-dashed bg-bg/85">
+          <p className="font-bold text-[18px] text-link">
+            ドロップして {ch.kind === "dm" || ch.kind === "group" ? channelLabel(ch, meId) : `#${ch.name}`}{" "}
+            にアップロード
+          </p>
+        </div>
+      )}
       <ChannelHeader channel={ch} />
       {ch.isMember && ch.kind !== "dm" && ch.kind !== "group" && <BookmarksBar channelId={ch.id} />}
       <MessageList key={ch.id} channel={ch} />

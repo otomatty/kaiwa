@@ -697,7 +697,7 @@ export function MessagePreview({
   const open =
     onClick ??
     (() => {
-      if (wid) navigate(`/w/${wid}/c/${m.channelId}?msg=${m.id}`);
+      if (wid) navigate(`/w/${wid}/c/${m.channelId}?msg=${m.threadRootId ?? m.id}`);
       if (m.threadRootId) openThread(m.threadRootId);
     });
   return (

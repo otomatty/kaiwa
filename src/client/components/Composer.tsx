@@ -311,6 +311,16 @@ export function Composer({
     ref.current?.focus();
   };
 
+  // Files dropped anywhere on the channel view land in the main composer.
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  useEffect(() => {
+    if (threadRootId) return;
+    const onDrop = (e: Event) => addFilesRef.current((e as CustomEvent<File[]>).detail);
+    window.addEventListener("kaiwa:drop-files", onDrop);
+    return () => window.removeEventListener("kaiwa:drop-files", onDrop);
+  }, [threadRootId]);
+
   // ---------- sending ----------
 
   const uploading = uploads.some((u) => !u.info);

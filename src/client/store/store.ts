@@ -94,8 +94,6 @@ export interface State {
   mobileSidebar: boolean;
   connection: "connecting" | "online" | "offline";
   toasts: Toast[];
-  /** Message to scroll to + highlight once the channel loads. */
-  jumpTo: string | null;
 }
 
 export const initialWorkspaceState = {
@@ -115,7 +113,6 @@ export const initialWorkspaceState = {
   bookmarkVersion: {},
   activityVersion: 0,
   panel: null as Panel,
-  jumpTo: null,
 };
 
 export const useStore = create<State>(() => ({

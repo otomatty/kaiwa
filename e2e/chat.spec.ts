@@ -182,3 +182,37 @@ test("file upload shows an attachment for everyone", async ({ browser }) => {
   await expect(msg.getByRole("img", { name: "pixel.png" })).toBeVisible();
   await expect(msg.getByText("notes.txt")).toBeVisible();
 });
+
+test("deep links jump to an old message, and older history loads on scroll", async ({ browser }) => {
+  const aoi = await newUser(browser, "青井");
+  const wid = await setupWorkspace(aoi);
+  const A = aoi.page;
+  const cid = A.url().split("/")[6] as string;
+  const ids: string[] = [];
+  for (let i = 0; i < 70; i++) {
+    const r = await A.request.post(`/api/channels/${cid}/messages`, {
+      data: { text: `履歴メッセージ ${i}` },
+    });
+    ids.push(((await r.json()) as { message: { id: string } }).message.id);
+  }
+  await A.goto(`/w/${wid}/c/${cid}?msg=${ids[3]}`);
+  const target = message(A, /履歴メッセージ 3(?!\d)/);
+  await expect(target).toBeVisible();
+  await expect(target).toHaveClass(/jump-highlight/);
+  await expect(A).toHaveURL(new RegExp(`/c/${cid}$`));
+
+  // From the latest page, scrolling up fetches older messages.
+  await A.goto(`/w/${wid}/c/${cid}`);
+  await expect(message(A, /履歴メッセージ 69/)).toBeVisible();
+  await expect(message(A, /履歴メッセージ 5(?!\d)/)).toHaveCount(0);
+  const list = A.getByTestId("message-list");
+  for (let i = 0; i < 10; i++) {
+    await list.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    if ((await message(A, /履歴メッセージ 5(?!\d)/).count()) > 0) break;
+    await A.waitForTimeout(300);
+  }
+  await expect(message(A, /履歴メッセージ 5(?!\d)/)).toHaveCount(1);
+  await expect(A.getByText("これは #general チャンネルの始まりです", { exact: false })).toBeVisible();
+});

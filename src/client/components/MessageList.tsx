@@ -2,6 +2,7 @@ import { ArrowDown, Hash, Lock, UserPlus } from "lucide-react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MyChannel } from "../../shared/types";
 import { formatDay, formatTime, startOfDay } from "../lib/format";
+import { navigate, useSearchParams } from "../lib/router";
 import {
   clearAutoReadSuppression,
   isAutoReadSuppressed,
@@ -13,14 +14,22 @@ import {
   markUnread,
   reportError,
 } from "../store/actions";
-import { channelLabel, get, openModal, set, useStore } from "../store/store";
+import { channelLabel, get, openModal, useStore } from "../store/store";
 import { isGrouped, MessageItem } from "./Message";
 import { Avatar, Button, Spinner } from "./ui";
+
+/** Reads and removes the ?msg= deep-link parameter. */
+function consumeJumpParam(): string | null {
+  const target = new URLSearchParams(window.location.search).get("msg");
+  if (target) navigate(window.location.pathname, { replace: true });
+  return target;
+}
 
 export function MessageList({ channel }: { channel: MyChannel }) {
   const cid = channel.id;
   const st = useStore((s) => s.channelMsgs[cid]);
-  const jumpTo = useStore((s) => s.jumpTo);
+  const msgParam = useSearchParams().get("msg");
+  const pendingJump = useRef<string | null>(null);
   const meId = useStore((s) => s.me?.id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +47,10 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     initialScrollDone.current = false;
     atBottom.current = true;
     setError(null);
-    const target = get().jumpTo;
+    setHighlight(null);
+    // Deep links (?msg=…) load the page around that message and highlight it.
+    const target = consumeJumpParam();
+    pendingJump.current = target;
     const load = target
       ? loadAround(cid, target)
       : get().channelMsgs[cid]?.loaded
@@ -47,13 +59,13 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     load
       .then(() => {
         if (target) {
+          atBottom.current = false;
           setHighlight(target);
-          set({ jumpTo: null });
         }
       })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "読み込みに失敗しました");
-        if (target) set({ jumpTo: null });
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "読み込みに失敗しました"))
+      .finally(() => {
+        pendingJump.current = null;
       });
   }, [cid]);
 
@@ -62,11 +74,12 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     if (channel.lastReadAt < readMarker) setReadMarker(channel.lastReadAt);
   }, [channel.lastReadAt, readMarker]);
 
-  // Jump requests while already in the channel (e.g. from search).
+  // Jump requests while already in the channel (e.g. from search or a notification).
   useEffect(() => {
-    if (!jumpTo || !initialScrollDone.current) return;
-    const target = jumpTo;
-    set({ jumpTo: null });
+    if (!msgParam || !initialScrollDone.current) return;
+    const target = consumeJumpParam();
+    if (!target) return;
+    atBottom.current = false;
     if (get().channelMsgs[cid]?.ids.includes(target)) {
       setHighlight(null);
       requestAnimationFrame(() => setHighlight(target));
@@ -75,7 +88,7 @@ export function MessageList({ channel }: { channel: MyChannel }) {
         .then(() => setHighlight(target))
         .catch(reportError);
     }
-  }, [jumpTo, cid]);
+  }, [msgParam, cid]);
 
   const ids = st?.ids ?? [];
 
@@ -91,7 +104,7 @@ export function MessageList({ channel }: { channel: MyChannel }) {
     const first = ids[0];
     if (!initialScrollDone.current) {
       initialScrollDone.current = true;
-      if (highlight || get().jumpTo) {
+      if (highlight || pendingJump.current) {
         // MessageItem scrolls itself into view.
       } else {
         const firstUnread = ids.find((id) => {

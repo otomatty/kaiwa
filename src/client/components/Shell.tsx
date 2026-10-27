@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { match, navigate, routes, usePath, useSearchParams } from "../lib/router";
+import { match, navigate, routes, usePath } from "../lib/router";
 import { bootWorkspace, goToDefaultChannel } from "../store/actions";
 import { connect, disconnect } from "../store/realtime";
-import { set, useStore } from "../store/store";
+import { useStore } from "../store/store";
 import { ChannelView } from "./ChannelView";
 import { ModalHost, useGlobalShortcuts } from "./Modals";
 import { RightPanel } from "./Panels";
@@ -22,7 +22,6 @@ import {
 
 export function WorkspaceShell({ wid }: { wid: string }) {
   const path = usePath();
-  const params = useSearchParams();
   const loaded = useStore((s) => s.wid === wid && !!s.workspace);
   const bootError = useStore((s) => s.bootError);
   const panel = useStore((s) => s.panel);
@@ -44,15 +43,6 @@ export function WorkspaceShell({ wid }: { wid: string }) {
   const channelMatch = match("/w/:wid/c/:cid", path);
   const view = match("/w/:wid/:view", path)?.view;
   const cid = channelMatch?.cid;
-  const msg = params.get("msg");
-
-  // Deep links to a message (?msg=) jump and highlight it.
-  useEffect(() => {
-    if (cid && msg) {
-      set({ jumpTo: msg });
-      navigate(routes.channel(wid, cid), { replace: true });
-    }
-  }, [cid, msg, wid]);
 
   useEffect(() => {
     if (cid) {
