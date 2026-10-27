@@ -58,6 +58,8 @@ pnpm dev                   # http://localhost:5173
 
 ローカルでは D1・R2・Durable Objects がすべて Miniflare で動くため、Cloudflare アカウントなしで開発できます。
 
+ローカルでは Cron Trigger が自動では動かないため、予約送信とリマインダーを確かめるときは `http://localhost:5173/cdn-cgi/local/scheduled` を開いて手動で実行してください（`?time=<ミリ秒>` で実行時刻を先に進められます）。
+
 ### 検証コマンド
 
 | コマンド | 内容 |
