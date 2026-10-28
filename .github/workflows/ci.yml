@@ -97,6 +97,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       - if: steps.config.outputs.ready == 'true'
         run: pnpm build
       - name: Upload preview version
@@ -140,6 +142,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       - if: steps.config.outputs.ready == 'true'
         run: pnpm build
       - name: Apply D1 migrations
@@ -153,7 +157,12 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          # Upload the Google sign-in credentials with the deployment (secrets.required in wrangler.jsonc).
+          node -e 'const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env; console.log(JSON.stringify({ GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET }))' > "$RUNNER_TEMP/secrets.json"
+          pnpm exec wrangler deploy --secrets-file "$RUNNER_TEMP/secrets.json"
       - name: Smoke test
         if: steps.config.outputs.ready == 'true' && vars.PRODUCTION_URL != ''
         run: |

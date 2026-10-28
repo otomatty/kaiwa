@@ -33,7 +33,7 @@ Cloudflare Worker (Hono)  ──────────►  Durable Object: Wor
 ```
 
 - 静的ファイルは Workers Static Assets で配信し、`/api/*` だけ Worker が処理します（`wrangler.jsonc` の `run_worker_first`）。
-- 認証はメールアドレスとパスワード（PBKDF2-SHA256）、HttpOnly Cookie のセッション。変更系リクエストと WebSocket 接続は Origin を検証し、サインイン・登録は Workers Rate Limiting で試行回数を制限しています。
+- 認証は Google アカウントのみです（OpenID Connect の認可コードフロー。PKCE・state・nonce を検証）。初回のサインインでアカウントを作成し、以降は Google のアカウント ID で同じアカウントに紐づけます。サインイン後は HttpOnly Cookie のセッションで、変更系リクエストと WebSocket 接続は Origin を検証しています。
 - 添付ファイルは権限チェック後に配信し、HTML/SVG などはダウンロード扱い（`nosniff` + CSP sandbox）にしています。
 
 ```
@@ -53,11 +53,24 @@ e2e/        Playwright による2ユーザー同時操作の E2E テスト
 ```bash
 git clone https://github.com/otomatty/kaiwa.git && cd kaiwa
 pnpm install
+cp .dev.vars.example .dev.vars   # Google の OAuth クライアント ID とシークレットを書く（下記）
 pnpm db:migrate:local      # ローカル D1 にスキーマを適用
 pnpm dev                   # http://localhost:5173
 ```
 
-ローカルでは D1・R2・Durable Objects がすべて Miniflare で動くため、Cloudflare アカウントなしで開発できます。
+ローカルでは D1・R2・Durable Objects がすべて Miniflare で動くため、Cloudflare アカウントなしで開発できます。サインインには Google の OAuth クライアントが必要です。
+
+### Google 認証の設定
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを選び、「API とサービス」→「OAuth 同意画面」を設定します（スコープは `openid` `email` `profile` のみ）。
+2. 「認証情報」→「認証情報を作成」→「OAuth クライアント ID」で、種類「ウェブ アプリケーション」のクライアントを作成します。
+3. 「承認済みのリダイレクト URI」に、サインインに使う URL ごとに `<URL>/api/auth/google/callback` を登録します。
+   - ローカル開発: `http://localhost:5173/api/auth/google/callback`
+   - 本番: `https://kaiwa.<subdomain>.workers.dev/api/auth/google/callback`（独自ドメインならそのドメイン）
+   - PR のプレビュー版でもサインインしたい場合は、その URL も登録してください（ワイルドカードは使えません）。
+4. 表示されたクライアント ID とシークレットを、ローカルでは `.dev.vars` の `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` に、本番では GitHub の Secrets（下記）に設定します。
+
+以前のメールアドレス・パスワード認証で作成したアカウントは、同じメールアドレス（Google で確認済みのもの）で Google サインインすると引き継がれます。
 
 ローカルでは Cron Trigger が自動では動かないため、予約送信とリマインダーを確かめるときは `http://localhost:5173/cdn-cgi/local/scheduled` を開いて手動で実行してください（`?time=<ミリ秒>` で実行時刻を先に進められます）。
 
@@ -71,7 +84,7 @@ pnpm dev                   # http://localhost:5173
 | `pnpm test:e2e` | 本番ビルドを起動して Playwright で E2E テスト |
 | `pnpm verify` | lint → typecheck → test → build をまとめて実行 |
 
-E2E を初めて動かすときは `pnpm exec playwright install chromium` を実行してください。
+E2E を初めて動かすときは `pnpm exec playwright install chromium` を実行してください。E2E では Google の代わりにローカルのモック（`e2e/google-oauth-mock.mjs`）でサインインするため、Google アカウントや `.dev.vars` は不要です。
 
 ## CI/CD（GitHub Actions）
 
@@ -80,7 +93,7 @@ E2E を初めて動かすときは `pnpm exec playwright install chromium` を�
 1. **verify**: Lint、生成済み Worker 型の差分チェック、型チェック、単体・統合テスト、ビルド
 2. **e2e**: Playwright で E2E テスト（失敗時はレポートとトレースを保存）
 3. **preview**（Pull Request）: `wrangler versions upload --preview-alias pr-<番号>` でプレビュー版を作り、URL を PR にコメント
-4. **deploy**（main への push）: D1 マイグレーションを本番に適用してから `wrangler deploy`。リポジトリ変数 `PRODUCTION_URL` があればヘルスチェック
+4. **deploy**（main への push）: D1 マイグレーションを本番に適用してから `wrangler deploy`（Google のクライアント ID・シークレットもここで Worker のシークレットとして登録）。リポジトリ変数 `PRODUCTION_URL` があればヘルスチェック
 
 Cloudflare の設定（下記の 1・2）がまだ何もされていない間は、preview と deploy は警告を出してスキップします（CI は失敗しません）。設定が一部だけの場合は、足りない項目を表示して失敗します。
 
@@ -101,6 +114,8 @@ D1 データベース `kaiwa-db` と R2 バケット `kaiwa-files` を作成し�
 | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | API トークン。テンプレート「Edit Cloudflare Workers」に **D1 の編集権限** を追加したもの |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
+| `GOOGLE_CLIENT_ID` | Google の OAuth クライアント ID（上記「Google 認証の設定」） |
+| `GOOGLE_CLIENT_SECRET` | Google の OAuth クライアント シークレット |
 
 任意でリポジトリ変数 `PRODUCTION_URL`（例: `https://kaiwa.<subdomain>.workers.dev`）を設定するとデプロイ後にヘルスチェックします。GitHub の Environments に `production` / `preview` を作ると承認フローも付けられます。
 
@@ -111,6 +126,8 @@ main ブランチに push すると CI が通った後に自動でデプロイ�
 ```bash
 pnpm run deploy    # build → D1 マイグレーション（remote）→ wrangler deploy
 ```
+
+Worker に Google のシークレットがまだ登録されていない場合（初回など）は、`GOOGLE_CLIENT_ID=...` と `GOOGLE_CLIENT_SECRET=...` を書いたファイルを渡してください: `pnpm run deploy --secrets-file <ファイル>`。登録済みのシークレットは `pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET` などで更新できます。
 
 ### スキーマを変更するとき
 

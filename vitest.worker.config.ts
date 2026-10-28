@@ -9,8 +9,12 @@ export default defineProject({
       return {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
-          // Test-only binding so the setup file can apply migrations to the isolated D1.
-          bindings: { TEST_MIGRATIONS: migrations },
+          bindings: {
+            // Test-only binding so the setup file can apply migrations to the isolated D1.
+            TEST_MIGRATIONS: migrations,
+            GOOGLE_CLIENT_ID: "test-client-id.apps.googleusercontent.com",
+            GOOGLE_CLIENT_SECRET: "test-client-secret",
+          },
         },
       };
     }),

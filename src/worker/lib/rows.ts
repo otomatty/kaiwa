@@ -17,7 +17,7 @@ import { chunk, placeholders } from "./http";
 export interface UserRow {
   id: string;
   email: string;
-  password_hash: string;
+  google_sub: string | null;
   display_name: string;
   full_name: string;
   title: string;

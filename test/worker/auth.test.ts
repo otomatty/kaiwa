@@ -1,51 +1,144 @@
 import { describe, expect, it } from "vitest";
-import { Client, signup } from "./helpers";
+import { Client, googleSignIn, insertUser, signup, stubGoogleToken } from "./helpers";
+
+const uniq = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+function signInError(r: { status: number; headers: Headers }): string | null {
+  expect(r.status).toBe(302);
+  return new URL(r.headers.get("Location") ?? "", "http://kaiwa.test").searchParams.get("error");
+}
 
 describe("auth", () => {
-  it("signs up, reads /me, logs out and back in", async () => {
+  it("redirects to Google with state, nonce and PKCE", async () => {
     const c = new Client();
-    const email = `taro-${Date.now()}@example.com`;
-    const s = await c.post<{ user: { id: string; displayName: string } }>("/auth/signup", {
-      email,
-      password: "password123",
-      displayName: "Taro",
+    const r = await c.get("/auth/google?next=%2Finvite%2Fabc");
+    expect(r.status).toBe(302);
+    const url = new URL(r.headers.get("Location") ?? "");
+    expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      client_id: "test-client-id.apps.googleusercontent.com",
+      redirect_uri: "http://kaiwa.test/api/auth/google/callback",
+      response_type: "code",
+      scope: "openid email profile",
+      code_challenge_method: "S256",
     });
-    expect(s.status).toBe(201);
-    expect(s.body.user.displayName).toBe("Taro");
-    expect(s.headers.get("Set-Cookie")).toMatch(/HttpOnly/i);
-
-    const me = await c.get<{ user: { id: string } | null }>("/me");
-    expect(me.body.user?.id).toBe(s.body.user.id);
-
-    await c.post("/auth/logout");
-    const after = await c.get<{ user: null }>("/me");
-    expect(after.body.user).toBeNull();
-
-    const bad = await c.post("/auth/login", { email, password: "wrong-password" });
-    expect(bad.status).toBe(401);
-
-    const ok = await c.post<{ user: { id: string } }>("/auth/login", {
-      email: email.toUpperCase(),
-      password: "password123",
-    });
-    expect(ok.status).toBe(200);
-    expect(ok.body.user.id).toBe(s.body.user.id);
+    for (const key of ["state", "nonce", "code_challenge"]) {
+      expect(url.searchParams.get(key)).toMatch(/^[\w-]{43}$/);
+    }
+    const cookie = r.headers.getSetCookie().find((v) => v.startsWith("kaiwa_oauth="));
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/Path=\/api\/auth\/google/);
   });
 
-  it("rejects duplicate emails and invalid input", async () => {
+  it("creates an account on first sign-in, reads /me, logs out and signs back in", async () => {
+    const id = uniq();
+    const account = { sub: `sub-${id}`, email: `Taro-${id}@Example.com`, name: "山田 太郎" };
     const c = new Client();
-    const email = `dup-${Date.now()}@example.com`;
-    expect((await c.post("/auth/signup", { email, password: "password123", displayName: "A" })).status).toBe(
-      201,
+    const r = await googleSignIn(c, account);
+    expect(r.headers.get("Location")).toBe("/");
+    expect(r.headers.getSetCookie().find((v) => v.startsWith("kaiwa_session="))).toMatch(/HttpOnly/i);
+
+    const me = await c.get<{ user: { id: string; email: string; displayName: string; fullName: string } }>(
+      "/me",
     );
-    const dup = await new Client().post("/auth/signup", { email, password: "password123", displayName: "B" });
-    expect(dup.status).toBe(409);
-    const short = await new Client().post("/auth/signup", {
-      email: "x@example.com",
-      password: "123",
-      displayName: "C",
+    expect(me.body.user).toMatchObject({
+      email: `taro-${id}@example.com`,
+      displayName: "山田 太郎",
+      fullName: "山田 太郎",
     });
-    expect(short.status).toBe(422);
+
+    await c.post("/auth/logout");
+    expect((await c.get<{ user: null }>("/me")).body.user).toBeNull();
+
+    await googleSignIn(c, { ...account, name: "Renamed on Google" });
+    const again = await c.get<{ user: { id: string; displayName: string } }>("/me");
+    expect(again.body.user.id).toBe(me.body.user.id);
+    // The profile is the user's own once created.
+    expect(again.body.user.displayName).toBe("山田 太郎");
+  });
+
+  it("links accounts created before Google sign-in by email and follows email changes", async () => {
+    const id = uniq();
+    const existing = await insertUser(`old-${id}@example.com`);
+    const c = new Client();
+    await googleSignIn(c, { sub: `sub-${id}`, email: `old-${id}@example.com`, name: "Old" });
+    expect((await c.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
+
+    await googleSignIn(c, { sub: `sub-${id}`, email: `new-${id}@example.com`, name: "Old" });
+    const me = await c.get<{ user: { id: string; email: string } }>("/me");
+    expect(me.body.user).toEqual(expect.objectContaining({ id: existing, email: `new-${id}@example.com` }));
+  });
+
+  it("refuses an email that belongs to a different Google account", async () => {
+    const id = uniq();
+    await insertUser(`taken-${id}@example.com`, `sub-a-${id}`);
+    const c = new Client();
+    const r = await googleSignIn(c, { sub: `sub-b-${id}`, email: `taken-${id}@example.com`, name: "B" });
+    expect(signInError(r)).toBe("account_conflict");
+    expect((await c.get<{ user: null }>("/me")).body.user).toBeNull();
+  });
+
+  it("rejects unverified emails and invalid ID tokens", async () => {
+    const account = () => ({ sub: `sub-${uniq()}`, email: `x-${uniq()}@example.com`, name: "X" });
+    const cases: [Record<string, unknown>, string][] = [
+      [{ email_verified: false }, "email_unverified"],
+      [{ nonce: "replayed" }, "google_failed"],
+      [{ aud: "someone-else.apps.googleusercontent.com" }, "google_failed"],
+      [{ iss: "https://evil.example" }, "google_failed"],
+      [{ exp: Math.floor(Date.now() / 1000) - 10 }, "google_failed"],
+    ];
+    for (const [claims, error] of cases) {
+      const c = new Client();
+      expect(signInError(await googleSignIn(c, account(), { claims })), JSON.stringify(claims)).toBe(error);
+      expect((await c.get<{ user: null }>("/me")).body.user).toBeNull();
+    }
+  });
+
+  it("fails safely when Google refuses the code", async () => {
+    const c = new Client();
+    const start = await c.get("/auth/google");
+    const state = new URL(start.headers.get("Location") ?? "").searchParams.get("state");
+    const restore = stubGoogleToken(() => Response.json({ error: "invalid_grant" }, { status: 400 }));
+    try {
+      expect(signInError(await c.get(`/auth/google/callback?code=bad&state=${state}`))).toBe("google_failed");
+    } finally {
+      restore();
+    }
+  });
+
+  it("rejects callbacks without the matching state cookie (login CSRF)", async () => {
+    const victim = new Client();
+    expect(signInError(await victim.get("/auth/google/callback?code=x&state=y"))).toBe("invalid_state");
+
+    const stateOf = async (c: Client) =>
+      new URL((await c.get("/auth/google")).headers.get("Location") ?? "").searchParams.get("state");
+    const attackerState = await stateOf(new Client());
+    const victimState = await stateOf(victim);
+    expect(signInError(await victim.get(`/auth/google/callback?code=x&state=${attackerState}`))).toBe(
+      "invalid_state",
+    );
+    // The state cookie is single-use, so a rejected callback also ends the victim's own attempt.
+    expect(signInError(await victim.get(`/auth/google/callback?code=x&state=${victimState}`))).toBe(
+      "invalid_state",
+    );
+  });
+
+  it("reports cancellation on Google's side", async () => {
+    const c = new Client();
+    const start = await c.get("/auth/google?next=%2Fw%2FT1");
+    const state = new URL(start.headers.get("Location") ?? "").searchParams.get("state");
+    const r = await c.get(`/auth/google/callback?error=access_denied&state=${state}`);
+    expect(r.headers.get("Location")).toBe("/login?error=access_denied&next=%2Fw%2FT1");
+  });
+
+  it("only returns to same-origin paths after sign-in", async () => {
+    const account = () => ({ sub: `sub-${uniq()}`, email: `n-${uniq()}@example.com`, name: "N" });
+    const ok = await googleSignIn(new Client(), account(), { next: "/invite/abc?x=1" });
+    expect(ok.headers.get("Location")).toBe("/invite/abc?x=1");
+    for (const next of ["//evil.example/", "/\\evil.example/", "/\t/evil.example", "https://evil.example/"]) {
+      const r = await googleSignIn(new Client(), account(), { next });
+      expect(r.headers.get("Location"), next).toBe("/");
+    }
   });
 
   it("requires auth for protected routes", async () => {
@@ -82,26 +175,6 @@ describe("auth", () => {
       statusExpiresAt: Date.now() - 1000,
     });
     expect(expired.body.user.statusText).toBe("");
-  });
-});
-
-describe("rate limiting", () => {
-  it("throttles repeated failed sign-ins for the same account", async () => {
-    const c = await signup("victim");
-    const statuses: number[] = [];
-    for (let i = 0; i < 12; i++) {
-      const r = await new Client().req(
-        "POST",
-        "/auth/login",
-        { email: c.user.email, password: "nope-nope" },
-        {
-          "CF-Connecting-IP": "203.0.113.9",
-        },
-      );
-      statuses.push(r.status);
-    }
-    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
-    expect(statuses.at(-1)).toBe(429);
   });
 });
 

@@ -1,9 +1,17 @@
-import { type Context, Hono } from "hono";
-import { loginSchema, signupSchema, updateProfileSchema } from "../../shared/validation";
+import { Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { updateProfileSchema } from "../../shared/validation";
 import { createSession, destroySession, loadSessionUser, requireAuth } from "../lib/auth";
 import type { AppEnv } from "../lib/context";
-import { hashPassword, verifyPassword } from "../lib/crypto";
-import { badRequest, conflict, HttpError, parseJson } from "../lib/http";
+import { randomToken, sha256B64Url } from "../lib/crypto";
+import {
+  authorizationUrl,
+  exchangeCode,
+  GoogleAuthError,
+  type GoogleProfile,
+  googleConfigured,
+} from "../lib/google";
+import { badRequest, parseJson } from "../lib/http";
 import { newId, pickColor } from "../lib/ids";
 import { hub, publish } from "../lib/realtime";
 import { toMember, toUser, type UserRow } from "../lib/rows";
@@ -12,49 +20,145 @@ import { listMyWorkspaces } from "./workspaces";
 
 export const authRoutes = new Hono<AppEnv>();
 
-function clientIp(c: Context<AppEnv>): string {
-  return c.req.header("CF-Connecting-IP") ?? "local";
+// Short-lived cookie that ties Google's redirect back to the browser that started the sign-in.
+const OAUTH_COOKIE = "kaiwa_oauth";
+const OAUTH_COOKIE_PATH = "/api/auth/google";
+const OAUTH_TTL_SECONDS = 10 * 60;
+
+interface OAuthState {
+  state: string;
+  nonce: string;
+  verifier: string;
+  next: string | null;
 }
 
-async function rateLimit(limiter: RateLimit | undefined, key: string) {
-  if (!limiter) return;
-  const { success } = await limiter.limit({ key });
-  if (!success)
-    throw new HttpError(429, "rate_limited", "試行回数が多すぎます。しばらくしてからもう一度お試しください");
+/** Same-origin path to return to after signing in, or null. */
+function safeNext(next: string | undefined | null): string | null {
+  if (!next?.startsWith("/")) return null;
+  const base = "https://kaiwa.invalid";
+  try {
+    // Resolve like a browser would so "//host", "/\host" and tab/newline tricks cannot leave the origin.
+    const url = new URL(next, base);
+    return url.origin === base ? url.pathname + url.search + url.hash : null;
+  } catch {
+    return null;
+  }
 }
 
-authRoutes.post("/signup", async (c) => {
-  await rateLimit(c.env.SIGNUP_LIMITER, `signup:${clientIp(c)}`);
-  const body = await parseJson(c, signupSchema);
-  const existing = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?1").bind(body.email).first();
-  if (existing) throw conflict("このメールアドレスは既に登録されています", "email_taken");
+function signInPage(error: string, next: string | null): string {
+  const q = new URLSearchParams({ error });
+  if (next) q.set("next", next);
+  return `/login?${q}`;
+}
+
+function readOAuthState(raw: string | undefined): OAuthState | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<OAuthState>;
+    if (typeof v.state !== "string" || typeof v.nonce !== "string" || typeof v.verifier !== "string") {
+      return null;
+    }
+    return { state: v.state, nonce: v.nonce, verifier: v.verifier, next: safeNext(v.next) };
+  } catch {
+    return null;
+  }
+}
+
+function callbackUrl(requestUrl: string): string {
+  return new URL("/api/auth/google/callback", requestUrl).toString();
+}
+
+/**
+ * Finds the account for a Google profile, linking or creating it.
+ * Returns null if the email address belongs to a different Google account.
+ */
+async function upsertGoogleUser(db: D1Database, p: GoogleProfile): Promise<string | null> {
+  const bySub = await db
+    .prepare("SELECT id, email FROM users WHERE google_sub = ?1")
+    .bind(p.sub)
+    .first<{ id: string; email: string }>();
+  if (bySub) {
+    // Follow email changes on the Google side unless another account already uses the address.
+    if (bySub.email.toLowerCase() !== p.email) {
+      await db
+        .prepare(
+          "UPDATE users SET email = ?2 WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM users WHERE email = ?2)",
+        )
+        .bind(bySub.id, p.email)
+        .run();
+    }
+    return bySub.id;
+  }
+  // Accounts created before Google sign-in are linked by their (Google-verified) email address.
+  const linked = await db
+    .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
+    .bind(p.email, p.sub)
+    .first<{ id: string }>();
+  if (linked) return linked.id;
+
   const id = newId("U");
-  const now = Date.now();
-  await c.env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, display_name, avatar_color, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-  )
-    .bind(id, body.email, await hashPassword(body.password), body.displayName, pickColor(id), now)
+  await db
+    .prepare(
+      `INSERT INTO users (id, email, google_sub, display_name, full_name, avatar_color, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6) ON CONFLICT DO NOTHING`,
+    )
+    .bind(id, p.email, p.sub, p.name, pickColor(id), Date.now())
     .run();
-  await createSession(c, id);
-  const user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?1").bind(id).first<UserRow>();
-  return c.json({ user: toUser(user as UserRow), workspaces: [] }, 201);
+  // Nothing was inserted if the email is taken by a different Google account (or a concurrent sign-in won).
+  const row = await db
+    .prepare("SELECT id FROM users WHERE google_sub = ?1")
+    .bind(p.sub)
+    .first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+authRoutes.get("/google", async (c) => {
+  const next = safeNext(c.req.query("next"));
+  if (!googleConfigured(c.env)) return c.redirect(signInPage("not_configured", next));
+  const saved: OAuthState = { state: randomToken(), nonce: randomToken(), verifier: randomToken(), next };
+  setCookie(c, OAUTH_COOKIE, JSON.stringify(saved), {
+    httpOnly: true,
+    secure: new URL(c.req.url).protocol === "https:",
+    // Lax so the cookie comes back on Google's top-level redirect to the callback.
+    sameSite: "Lax",
+    path: OAUTH_COOKIE_PATH,
+    maxAge: OAUTH_TTL_SECONDS,
+  });
+  return c.redirect(
+    authorizationUrl(c.env, {
+      redirectUri: callbackUrl(c.req.url),
+      state: saved.state,
+      nonce: saved.nonce,
+      codeChallenge: await sha256B64Url(saved.verifier),
+    }),
+  );
 });
 
-authRoutes.post("/login", async (c) => {
-  const body = await parseJson(c, loginSchema);
-  await rateLimit(c.env.LOGIN_LIMITER, `login:${clientIp(c)}:${body.email}`);
-  const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?1")
-    .bind(body.email)
-    .first<UserRow>();
-  // Always run a hash comparison to keep timing similar for unknown emails.
-  const ok = user
-    ? await verifyPassword(body.password, user.password_hash)
-    : await verifyPassword(body.password, "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAA");
-  if (!user || !ok)
-    throw new HttpError(401, "invalid_credentials", "メールアドレスまたはパスワードが違います");
-  await createSession(c, user.id);
-  return c.json({ user: toUser(user), workspaces: await listMyWorkspaces(c.env.DB, user.id) });
+authRoutes.get("/google/callback", async (c) => {
+  const saved = readOAuthState(getCookie(c, OAUTH_COOKIE));
+  deleteCookie(c, OAUTH_COOKIE, { path: OAUTH_COOKIE_PATH });
+  const next = saved?.next ?? null;
+  const fail = (error: string) => c.redirect(signInPage(error, next));
+  const { code, state, error } = c.req.query();
+  if (error) return fail(error === "access_denied" ? "access_denied" : "google_failed");
+  if (!saved || !code || !state || state !== saved.state) return fail("invalid_state");
+
+  let profile: GoogleProfile;
+  try {
+    profile = await exchangeCode(c.env, {
+      code,
+      redirectUri: callbackUrl(c.req.url),
+      codeVerifier: saved.verifier,
+      nonce: saved.nonce,
+    });
+  } catch (err) {
+    if (err instanceof GoogleAuthError) return fail(err.code);
+    throw err;
+  }
+  const userId = await upsertGoogleUser(c.env.DB, profile);
+  if (!userId) return fail("account_conflict");
+  await createSession(c, userId);
+  return c.redirect(next ?? "/");
 });
 
 authRoutes.post("/logout", async (c) => {

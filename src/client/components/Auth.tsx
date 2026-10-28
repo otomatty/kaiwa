@@ -34,164 +34,79 @@ function AuthLayout({
   );
 }
 
-function redirectAfterAuth(next: string | null) {
-  const s = useStore.getState();
-  if (next) return navigate(next, { replace: true });
-  const last = localStorage.getItem("kaiwa:last-workspace");
-  const target = s.workspaces.find((w) => w.id === last) ?? s.workspaces[0];
-  navigate(target ? `/w/${target.id}` : "/new", { replace: true });
-}
-
 function nextParam(): string | null {
   const n = new URLSearchParams(window.location.search).get("next");
   return n?.startsWith("/") && !n.startsWith("//") ? n : null;
 }
 
-export function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const next = nextParam();
+// Error codes the API puts in /login?error=… after a failed Google sign-in.
+const SIGN_IN_ERRORS: Record<string, string> = {
+  access_denied: "Google でのサインインがキャンセルされました。",
+  invalid_state: "サインインの有効期限が切れました。もう一度お試しください。",
+  email_unverified: "メールアドレスが確認済みの Google アカウントでサインインしてください。",
+  account_conflict: "このメールアドレスは別の Google アカウントで登録されています。",
+  not_configured: "Google 認証が設定されていません。管理者に連絡してください。",
+  google_failed: "Google での認証に失敗しました。もう一度お試しください。",
+};
+
+function GoogleLogo() {
   return (
-    <AuthLayout title="サインイン" subtitle="メールアドレスとパスワードを入力してください。">
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError(null);
-          try {
-            const r = await api.login({ email, password });
-            set({ me: r.user, workspaces: r.workspaces });
-            redirectAfterAuth(next);
-          } catch (err) {
-            setError(err instanceof ApiError ? err.message : "サインインできませんでした");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <TextField
-          label="メールアドレス"
-          type="email"
-          autoComplete="email"
-          autoFocus
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@work-email.com"
-        />
-        <TextField
-          label="パスワード"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && (
-          <p className="rounded-md bg-danger/10 px-3 py-2 text-[14px] text-danger" role="alert">
-            {error}
-          </p>
-        )}
-        <Button type="submit" variant="primary" className="h-11 w-full text-[16px]" disabled={busy}>
-          サインインする
-        </Button>
-      </form>
-      <p className="mt-6 text-center text-[14px] text-fg-muted">
-        はじめてですか？{" "}
-        <a
-          href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ""}`}
-          onClick={(e) => {
-            e.preventDefault();
-            navigate(`/signup${next ? `?next=${encodeURIComponent(next)}` : ""}`);
-          }}
-          className="font-bold text-link hover:underline"
-        >
-          アカウントを作成する
-        </a>
-      </p>
-    </AuthLayout>
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
   );
 }
 
-export function SignupPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const next = nextParam();
+/** Starts Google sign-in (a full-page navigation); `next` is where to land afterwards. */
+function GoogleSignInButton({
+  next,
+  label = "Google でサインイン",
+}: {
+  next: string | null;
+  label?: string;
+}) {
   return (
-    <AuthLayout title="アカウントを作成" subtitle="仕事用のメールアドレスで始めましょう。">
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError(null);
-          try {
-            const r = await api.signup({ email, password, displayName });
-            set({ me: r.user, workspaces: r.workspaces });
-            redirectAfterAuth(next);
-          } catch (err) {
-            setError(err instanceof ApiError ? err.message : "登録できませんでした");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <TextField
-          label="表示名"
-          autoFocus
-          required
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          maxLength={80}
-          placeholder="例: 山田 太郎"
-          autoComplete="nickname"
-        />
-        <TextField
-          label="メールアドレス"
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@work-email.com"
-          autoComplete="email"
-        />
-        <TextField
-          label="パスワード"
-          type="password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          hint="8文字以上"
-          autoComplete="new-password"
-        />
-        {error && (
-          <p className="rounded-md bg-danger/10 px-3 py-2 text-[14px] text-danger" role="alert">
-            {error}
-          </p>
-        )}
-        <Button type="submit" variant="primary" className="h-11 w-full text-[16px]" disabled={busy}>
-          アカウントを作成する
-        </Button>
-      </form>
+    <a
+      href={`/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ""}`}
+      className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-line-strong bg-bg font-bold text-[16px] text-fg transition-colors hover:bg-bg-soft"
+    >
+      <GoogleLogo />
+      {label}
+    </a>
+  );
+}
+
+export function LoginPage() {
+  const next = nextParam();
+  const errorCode = new URLSearchParams(window.location.search).get("error");
+  const error = errorCode
+    ? (SIGN_IN_ERRORS[errorCode] ?? "サインインできませんでした。もう一度お試しください。")
+    : null;
+  return (
+    <AuthLayout title="サインイン" subtitle="Google アカウントでサインインしてください。">
+      {error && (
+        <p className="mb-4 rounded-md bg-danger/10 px-3 py-2 text-[14px] text-danger" role="alert">
+          {error}
+        </p>
+      )}
+      <GoogleSignInButton next={next} />
       <p className="mt-6 text-center text-[14px] text-fg-muted">
-        すでにアカウントをお持ちですか？{" "}
-        <a
-          href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`}
-          onClick={(e) => {
-            e.preventDefault();
-            navigate(`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`);
-          }}
-          className="font-bold text-link hover:underline"
-        >
-          サインインする
-        </a>
+        はじめての場合は、サインインするとアカウントが作成されます。
       </p>
     </AuthLayout>
   );
@@ -345,21 +260,7 @@ export function InvitePage({ code }: { code: string }) {
           </>
         )
       ) : (
-        <div className="space-y-3">
-          <Button
-            variant="primary"
-            className="h-11 w-full text-[16px]"
-            onClick={() => navigate(`/signup?next=${encodeURIComponent(here)}`)}
-          >
-            アカウントを作成して参加
-          </Button>
-          <Button
-            className="h-11 w-full text-[16px]"
-            onClick={() => navigate(`/login?next=${encodeURIComponent(here)}`)}
-          >
-            既存のアカウントでサインイン
-          </Button>
-        </div>
+        <GoogleSignInButton next={here} label="Google でサインインして参加" />
       )}
     </AuthLayout>
   );

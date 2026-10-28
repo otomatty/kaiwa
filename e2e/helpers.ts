@@ -8,17 +8,23 @@ export interface TestUser {
   email: string;
 }
 
-/** Creates a fresh browser context and signs a user up through the API (cookies are shared with the page). */
+/** Signs in with the page's Google button through the local stand-in for Google (e2e/google-oauth-mock.mjs). */
+export async function signInWithGoogle(page: Page, email: string, name: string) {
+  await page.getByRole("link", { name: /^Google でサインイン/ }).click();
+  await page.getByLabel("メールアドレス").fill(email);
+  await page.getByLabel("名前").fill(name);
+  await page.getByRole("button", { name: "続行" }).click();
+}
+
+/** Creates a fresh browser context and signs a new user in with Google. */
 export async function newUser(browser: Browser, name: string): Promise<TestUser> {
   const context = await browser.newContext({ locale: "ja-JP", timezoneId: "Asia/Tokyo" });
   const page = await context.newPage();
   seq++;
   const email = `user-${Date.now()}-${seq}@example.com`;
   await page.goto("/login");
-  const res = await page.request.post("/api/auth/signup", {
-    data: { email, password: "password123", displayName: name },
-  });
-  expect(res.status()).toBe(201);
+  await signInWithGoogle(page, email, name);
+  await page.waitForURL(/\/new$/);
   return { page, name, email };
 }
 

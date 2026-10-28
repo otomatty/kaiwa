@@ -1,6 +1,6 @@
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { InvitePage, LoginPage, NewWorkspacePage, NotFoundPage, SignupPage } from "./components/Auth";
+import { InvitePage, LoginPage, NewWorkspacePage, NotFoundPage } from "./components/Auth";
 import { WorkspaceShell } from "./components/Shell";
 import { cx, Spinner } from "./components/ui";
 import { match, navigate, usePath } from "./lib/router";
@@ -55,14 +55,14 @@ function App() {
 
   const invite = match("/invite/:code", path);
   const ws = path.startsWith("/w/") ? path.split("/")[2] : null;
-  const isPublic = path === "/login" || path === "/signup" || !!invite;
+  const isPublic = path === "/login" || !!invite;
 
   useEffect(() => {
     if (!authReady) return;
     if (!me && !isPublic) {
       const next = path === "/" ? "" : `?next=${encodeURIComponent(path + window.location.search)}`;
       navigate(`/login${next}`, { replace: true });
-    } else if (me && (path === "/login" || path === "/signup")) {
+    } else if (me && path === "/login") {
       const nextParam = new URLSearchParams(window.location.search).get("next");
       navigate(nextParam?.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/", {
         replace: true,
@@ -85,7 +85,6 @@ function App() {
   let page: React.ReactNode = null;
   if (invite?.code) page = <InvitePage code={invite.code} />;
   else if (path === "/login") page = <LoginPage />;
-  else if (path === "/signup") page = <SignupPage />;
   else if (me && path === "/new") page = <NewWorkspacePage />;
   else if (me && ws) page = <WorkspaceShell key={ws} wid={ws} />;
   else if (me && path !== "/") page = <NotFoundPage />;

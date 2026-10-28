@@ -32,11 +32,9 @@
     "bindings": [{ "name": "WORKSPACE_HUB", "class_name": "WorkspaceHub" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceHub"] }],
-  // Brute-force protection for sign-in / sign-up (per Cloudflare location, approximate).
-  "ratelimits": [
-    { "name": "LOGIN_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } },
-    { "name": "SIGNUP_LIMITER", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
-  ],
+  // Google sign-in (OAuth client of type "Web application"); see README.
+  // Locally they come from .dev.vars; in production from `wrangler secret put` or CI.
+  "secrets": { "required": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"] },
   "vars": {
     "APP_NAME": "Kaiwa"
   }

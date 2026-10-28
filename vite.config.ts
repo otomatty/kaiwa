@@ -3,8 +3,15 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// E2E builds sign in through a local stand-in for Google's OAuth endpoints (e2e/google-oauth-mock.mjs).
+const googleOAuthMock = process.env.E2E_GOOGLE_OAUTH_URL;
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), cloudflare()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    cloudflare(googleOAuthMock ? { config: { vars: { GOOGLE_OAUTH_URL: googleOAuthMock } } } : {}),
+  ],
   server: {
     port: Number(process.env.PORT ?? 5173),
     strictPort: true,

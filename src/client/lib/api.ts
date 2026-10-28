@@ -105,8 +105,6 @@ export function uploadFile(
 
 export const api = {
   me: () => get<Me | { user: null; workspaces: [] }>("/me"),
-  signup: (b: { email: string; password: string; displayName: string }) => post<Me>("/auth/signup", b),
-  login: (b: { email: string; password: string }) => post<Me>("/auth/login", b),
   logout: () => post<{ ok: true }>("/auth/logout"),
   updateMe: (
     b: Partial<Omit<User, "id" | "email" | "createdAt" | "avatarUrl">> & { avatarFileId?: string | null },
