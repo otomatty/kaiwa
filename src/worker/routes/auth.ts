@@ -1,4 +1,4 @@
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { updateProfileSchema } from "../../shared/validation";
 import { createSession, destroySession, loadSessionUser, requireAuth } from "../lib/auth";
@@ -95,11 +95,18 @@ async function upsertGoogleUser(
   // Accounts created before Google sign-in are linked by email address, but only when Google vouches
   // for the address's current owner.
   if (p.emailAuthoritative) {
-    const linked = await db
-      .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
-      .bind(p.email, p.sub)
-      .first<{ id: string }>();
-    if (linked) return { id: linked.id, linked: true };
+    // Those accounts were created without proving the address, so whoever registered it loses their
+    // sessions in the same transaction as the link.
+    const [linked] = await db.batch<{ id: string }>([
+      db
+        .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
+        .bind(p.email, p.sub),
+      db
+        .prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE google_sub = ?1)")
+        .bind(p.sub),
+    ]);
+    const linkedId = linked?.results[0]?.id;
+    if (linkedId) return { id: linkedId, linked: true };
   }
 
   const id = newId("U");
@@ -123,20 +130,12 @@ async function upsertGoogleUser(
   return { error: taken && taken.google_sub === null ? "link_unavailable" : "account_conflict" };
 }
 
-/** Revokes every session of the account and closes its open WebSockets. */
-async function signOutEverywhere(c: Context<AppEnv>, userId: string): Promise<void> {
-  await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(userId).run();
-  const { results } = await c.env.DB.prepare("SELECT workspace_id FROM workspace_members WHERE user_id = ?1")
+/** Closes the user's open WebSockets in every workspace, e.g. after their sessions were revoked. */
+async function disconnectEverywhere(env: Env, userId: string): Promise<void> {
+  const { results } = await env.DB.prepare("SELECT workspace_id FROM workspace_members WHERE user_id = ?1")
     .bind(userId)
     .all<{ workspace_id: string }>();
-  const task = Promise.all(
-    results.map((r) => hub(c.env, r.workspace_id).disconnectUser(userId, "signed_out")),
-  );
-  try {
-    c.executionCtx.waitUntil(task);
-  } catch {
-    await task;
-  }
+  await Promise.all(results.map((r) => hub(env, r.workspace_id).disconnectUser(userId, "signed_out")));
 }
 
 authRoutes.get("/google", async (c) => {
@@ -184,9 +183,9 @@ authRoutes.get("/google/callback", async (c) => {
   }
   const user = await upsertGoogleUser(c.env.DB, profile);
   if ("error" in user) return fail(user.error);
-  // Accounts from before Google sign-in were created without proving the address, so whoever
-  // registered it loses access.
-  if (user.linked) await signOutEverywhere(c, user.id);
+  // Linking revoked the account's earlier sessions; close the sockets they opened before the new
+  // session exists, so none of the owner's own sockets get caught.
+  if (user.linked) await disconnectEverywhere(c.env, user.id);
   await createSession(c, user.id);
   return c.redirect(next ?? "/");
 });
