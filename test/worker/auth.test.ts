@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Client, googleSignIn, insertUser, signup, stubGoogleToken } from "./helpers";
+import { Client, googleSignIn, insertUser, legacySession, signup, stubGoogleToken } from "./helpers";
 
 const uniq = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -57,16 +57,42 @@ describe("auth", () => {
     expect(again.body.user.displayName).toBe("山田 太郎");
   });
 
-  it("links accounts created before Google sign-in by email and follows email changes", async () => {
+  it("links accounts created before Google sign-in by a Workspace or Gmail address", async () => {
     const id = uniq();
     const existing = await insertUser(`old-${id}@example.com`);
-    const c = new Client();
-    await googleSignIn(c, { sub: `sub-${id}`, email: `old-${id}@example.com`, name: "Old" });
-    expect((await c.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
+    // Whoever registered the address back then (proven or not) loses their sessions.
+    const before = await legacySession(existing);
+    expect((await before.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
 
-    await googleSignIn(c, { sub: `sub-${id}`, email: `new-${id}@example.com`, name: "Old" });
+    const c = new Client();
+    const account = { sub: `sub-${id}`, email: `old-${id}@example.com`, name: "Old" };
+    await googleSignIn(c, account, { claims: { hd: "example.com" } });
+    expect((await c.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
+    expect((await before.get<{ user: null }>("/me")).body.user).toBeNull();
+
+    // Later email changes on the Google side are followed.
+    await googleSignIn(c, { ...account, email: `new-${id}@example.com` });
     const me = await c.get<{ user: { id: string; email: string } }>("/me");
     expect(me.body.user).toEqual(expect.objectContaining({ id: existing, email: `new-${id}@example.com` }));
+
+    const gmail = await insertUser(`kaiwa.${id}@gmail.com`);
+    await googleSignIn(c, { sub: `sub-gmail-${id}`, email: `kaiwa.${id}@gmail.com`, name: "G" });
+    expect((await c.get<{ user: { id: string } }>("/me")).body.user.id).toBe(gmail);
+  });
+
+  it("does not link by an address Google cannot vouch for the current owner of", async () => {
+    const id = uniq();
+    await insertUser(`legacy-${id}@example.com`);
+    const c = new Client();
+    for (const claims of [{}, { hd: "other.example" }]) {
+      const r = await googleSignIn(
+        c,
+        { sub: `sub-${id}`, email: `legacy-${id}@example.com`, name: "L" },
+        { claims },
+      );
+      expect(signInError(r), JSON.stringify(claims)).toBe("link_unavailable");
+      expect((await c.get<{ user: null }>("/me")).body.user).toBeNull();
+    }
   });
 
   it("refuses an email that belongs to a different Google account", async () => {

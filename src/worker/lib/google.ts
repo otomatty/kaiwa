@@ -10,6 +10,8 @@ const ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 export interface GoogleProfile {
   sub: string;
   email: string;
+  /** Google vouches for the address's current owner (Gmail or Google Workspace), not only its past verification. */
+  emailAuthoritative: boolean;
   name: string;
 }
 
@@ -57,6 +59,7 @@ interface IdTokenClaims {
   sub?: unknown;
   email?: unknown;
   email_verified?: unknown;
+  hd?: unknown;
   name?: unknown;
 }
 
@@ -116,9 +119,13 @@ export async function exchangeCode(
   }
   const email = (claims.email as string).trim().toLowerCase();
   const name = typeof claims.name === "string" ? claims.name.trim() : "";
+  // `hd` is set for Google Workspace accounts; other non-Gmail addresses may have changed owners since
+  // they were verified (https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
+  const hd = typeof claims.hd === "string" ? claims.hd.toLowerCase() : "";
   return {
     sub: claims.sub as string,
     email,
+    emailAuthoritative: email.endsWith("@gmail.com") || (hd !== "" && email.endsWith(`@${hd}`)),
     name: [...(name || (email.split("@")[0] as string))].slice(0, LIMITS.displayName).join(""),
   };
 }

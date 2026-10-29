@@ -69,10 +69,13 @@ function callbackUrl(requestUrl: string): string {
 }
 
 /**
- * Finds the account for a Google profile, linking or creating it.
- * Returns null if the email address belongs to a different Google account.
+ * Finds the account for a Google profile, linking or creating it. Fails when the email address
+ * belongs to another account that this Google account cannot take over.
  */
-async function upsertGoogleUser(db: D1Database, p: GoogleProfile): Promise<string | null> {
+async function upsertGoogleUser(
+  db: D1Database,
+  p: GoogleProfile,
+): Promise<{ id: string } | { error: "account_conflict" | "link_unavailable" }> {
   const bySub = await db
     .prepare("SELECT id, email FROM users WHERE google_sub = ?1")
     .bind(p.sub)
@@ -87,14 +90,21 @@ async function upsertGoogleUser(db: D1Database, p: GoogleProfile): Promise<strin
         .bind(bySub.id, p.email)
         .run();
     }
-    return bySub.id;
+    return { id: bySub.id };
   }
-  // Accounts created before Google sign-in are linked by their (Google-verified) email address.
-  const linked = await db
-    .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
-    .bind(p.email, p.sub)
-    .first<{ id: string }>();
-  if (linked) return linked.id;
+  // Accounts created before Google sign-in are linked by email address, but only when Google vouches
+  // for the address's current owner.
+  if (p.emailAuthoritative) {
+    const linked = await db
+      .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
+      .bind(p.email, p.sub)
+      .first<{ id: string }>();
+    if (linked) {
+      // Those accounts were created without proving the address, so drop every session from before.
+      await db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(linked.id).run();
+      return { id: linked.id };
+    }
+  }
 
   const id = newId("U");
   await db
@@ -104,12 +114,17 @@ async function upsertGoogleUser(db: D1Database, p: GoogleProfile): Promise<strin
     )
     .bind(id, p.email, p.sub, p.name, pickColor(id), Date.now())
     .run();
-  // Nothing was inserted if the email is taken by a different Google account (or a concurrent sign-in won).
+  // Nothing is inserted if another account has the email (or a concurrent sign-in won).
   const row = await db
     .prepare("SELECT id FROM users WHERE google_sub = ?1")
     .bind(p.sub)
     .first<{ id: string }>();
-  return row?.id ?? null;
+  if (row) return { id: row.id };
+  const taken = await db
+    .prepare("SELECT google_sub FROM users WHERE email = ?1")
+    .bind(p.email)
+    .first<{ google_sub: string | null }>();
+  return { error: taken && taken.google_sub === null ? "link_unavailable" : "account_conflict" };
 }
 
 authRoutes.get("/google", async (c) => {
@@ -155,9 +170,9 @@ authRoutes.get("/google/callback", async (c) => {
     if (err instanceof GoogleAuthError) return fail(err.code);
     throw err;
   }
-  const userId = await upsertGoogleUser(c.env.DB, profile);
-  if (!userId) return fail("account_conflict");
-  await createSession(c, userId);
+  const user = await upsertGoogleUser(c.env.DB, profile);
+  if ("error" in user) return fail(user.error);
+  await createSession(c, user.id);
   return c.redirect(next ?? "/");
 });
 

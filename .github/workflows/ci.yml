@@ -107,8 +107,12 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
-          pnpm exec wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}" | tee upload.log
+          # Upload the Google sign-in credentials with the version (secrets.required in wrangler.jsonc).
+          node -e 'const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env; console.log(JSON.stringify({ GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET }))' > "$RUNNER_TEMP/secrets.json"
+          pnpm exec wrangler versions upload --preview-alias "pr-${{ github.event.pull_request.number }}" --secrets-file "$RUNNER_TEMP/secrets.json" | tee upload.log
           url=$(grep -oE 'https://[^ ]+\.workers\.dev' upload.log | tail -1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Comment preview URL

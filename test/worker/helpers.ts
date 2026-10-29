@@ -1,6 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { vi } from "vitest";
 import type { Bootstrap, MyChannel } from "../../src/shared/types";
+import { sha256Hex } from "../../src/worker/lib/crypto";
 import { newId } from "../../src/worker/lib/ids";
 
 const ORIGIN = "http://kaiwa.test";
@@ -155,6 +156,17 @@ export async function signup(name = "user"): Promise<Client> {
   }
   const me = await client.get<{ user: Client["user"] }>("/me");
   client.user = me.body.user;
+  return client;
+}
+
+/** A client signed in to `userId` through a session created directly in the database. */
+export async function legacySession(userId: string): Promise<Client> {
+  const client = new Client();
+  const token = `legacy-${crypto.randomUUID()}`;
+  await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?1, ?2, ?3, ?4)")
+    .bind(await sha256Hex(token), userId, Date.now(), Date.now() + 60 * 60 * 1000)
+    .run();
+  client.cookies.set("kaiwa_session", token);
   return client;
 }
 

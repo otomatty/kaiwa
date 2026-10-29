@@ -45,6 +45,8 @@ const SIGN_IN_ERRORS: Record<string, string> = {
   invalid_state: "サインインの有効期限が切れました。もう一度お試しください。",
   email_unverified: "メールアドレスが確認済みの Google アカウントでサインインしてください。",
   account_conflict: "このメールアドレスは別の Google アカウントで登録されています。",
+  link_unavailable:
+    "このメールアドレスの既存アカウントは、Gmail・Google Workspace 以外のため自動で引き継げません。管理者に連絡してください。",
   not_configured: "Google 認証が設定されていません。管理者に連絡してください。",
   google_failed: "Google での認証に失敗しました。もう一度お試しください。",
 };
