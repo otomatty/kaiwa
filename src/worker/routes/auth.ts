@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { updateProfileSchema } from "../../shared/validation";
 import { createSession, destroySession, loadSessionUser, requireAuth } from "../lib/auth";
@@ -75,7 +75,7 @@ function callbackUrl(requestUrl: string): string {
 async function upsertGoogleUser(
   db: D1Database,
   p: GoogleProfile,
-): Promise<{ id: string } | { error: "account_conflict" | "link_unavailable" }> {
+): Promise<{ id: string; linked?: true } | { error: "account_conflict" | "link_unavailable" }> {
   const bySub = await db
     .prepare("SELECT id, email FROM users WHERE google_sub = ?1")
     .bind(p.sub)
@@ -99,11 +99,7 @@ async function upsertGoogleUser(
       .prepare("UPDATE users SET google_sub = ?2 WHERE email = ?1 AND google_sub IS NULL RETURNING id")
       .bind(p.email, p.sub)
       .first<{ id: string }>();
-    if (linked) {
-      // Those accounts were created without proving the address, so drop every session from before.
-      await db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(linked.id).run();
-      return { id: linked.id };
-    }
+    if (linked) return { id: linked.id, linked: true };
   }
 
   const id = newId("U");
@@ -125,6 +121,22 @@ async function upsertGoogleUser(
     .bind(p.email)
     .first<{ google_sub: string | null }>();
   return { error: taken && taken.google_sub === null ? "link_unavailable" : "account_conflict" };
+}
+
+/** Revokes every session of the account and closes its open WebSockets. */
+async function signOutEverywhere(c: Context<AppEnv>, userId: string): Promise<void> {
+  await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(userId).run();
+  const { results } = await c.env.DB.prepare("SELECT workspace_id FROM workspace_members WHERE user_id = ?1")
+    .bind(userId)
+    .all<{ workspace_id: string }>();
+  const task = Promise.all(
+    results.map((r) => hub(c.env, r.workspace_id).disconnectUser(userId, "signed_out")),
+  );
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
 }
 
 authRoutes.get("/google", async (c) => {
@@ -172,6 +184,9 @@ authRoutes.get("/google/callback", async (c) => {
   }
   const user = await upsertGoogleUser(c.env.DB, profile);
   if ("error" in user) return fail(user.error);
+  // Accounts from before Google sign-in were created without proving the address, so whoever
+  // registered it loses access.
+  if (user.linked) await signOutEverywhere(c, user.id);
   await createSession(c, user.id);
   return c.redirect(next ?? "/");
 });

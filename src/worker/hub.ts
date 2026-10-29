@@ -130,10 +130,11 @@ export class WorkspaceHub extends DurableObject<Env> {
     if (before !== after) this.broadcast([{ type: "presence", userId, presence: after }], null);
   }
 
-  async disconnectUser(userId: string): Promise<void> {
+  /** Closes the user's sockets: removed from the workspace (4003), or signed out everywhere (4001). */
+  async disconnectUser(userId: string, reason: "removed" | "signed_out" = "removed"): Promise<void> {
     for (const ws of this.ctx.getWebSockets(userId)) {
       try {
-        ws.close(4003, "removed");
+        ws.close(reason === "removed" ? 4003 : 4001, reason);
       } catch {
         // ignore
       }

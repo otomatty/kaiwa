@@ -1,3 +1,4 @@
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { Client, googleSignIn, insertUser, legacySession, signup, stubGoogleToken } from "./helpers";
 
@@ -60,15 +61,25 @@ describe("auth", () => {
   it("links accounts created before Google sign-in by a Workspace or Gmail address", async () => {
     const id = uniq();
     const existing = await insertUser(`old-${id}@example.com`);
-    // Whoever registered the address back then (proven or not) loses their sessions.
+    // Whoever registered the address back then (proven or not) loses their sessions and sockets.
     const before = await legacySession(existing);
-    expect((await before.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
+    const ws = await before.post<{ workspace: { id: string } }>("/workspaces", { name: "Legacy" });
+    const res = await exports.default.fetch(
+      new Request(`http://kaiwa.test/api/workspaces/${ws.body.workspace.id}/ws`, {
+        headers: { Upgrade: "websocket", Cookie: before.cookie },
+      }),
+    );
+    expect(res.status).toBe(101);
+    const socket = res.webSocket as WebSocket;
+    socket.accept();
+    const closed = new Promise<number>((resolve) => socket.addEventListener("close", (e) => resolve(e.code)));
 
     const c = new Client();
     const account = { sub: `sub-${id}`, email: `old-${id}@example.com`, name: "Old" };
     await googleSignIn(c, account, { claims: { hd: "example.com" } });
     expect((await c.get<{ user: { id: string } }>("/me")).body.user.id).toBe(existing);
     expect((await before.get<{ user: null }>("/me")).body.user).toBeNull();
+    expect(await closed).toBe(4001);
 
     // Later email changes on the Google side are followed.
     await googleSignIn(c, { ...account, email: `new-${id}@example.com` });
