@@ -81,6 +81,11 @@ function open() {
       navigate("/");
       return;
     }
+    if (ev.code === 4001) {
+      // Every session of this account was revoked.
+      window.dispatchEvent(new Event("kaiwa:unauthorized"));
+      return;
+    }
     if (!currentWid) return;
     const delay = Math.min(30_000, 1000 * 2 ** retry) + Math.random() * 500;
     retry++;

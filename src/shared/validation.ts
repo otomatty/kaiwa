@@ -3,20 +3,6 @@ import { LIMITS, normalizeChannelName } from "./limits";
 
 export { channelNameError, LIMITS, normalizeChannelName } from "./limits";
 
-const email = z.string().trim().toLowerCase().email("メールアドレスの形式が正しくありません").max(254);
-const password = z.string().min(8, "パスワードは8文字以上にしてください").max(200);
-
-export const signupSchema = z.object({
-  email,
-  password,
-  displayName: z.string().trim().min(1, "表示名を入力してください").max(LIMITS.displayName),
-});
-
-export const loginSchema = z.object({
-  email,
-  password: z.string().min(1).max(200),
-});
-
 export const updateProfileSchema = z
   .object({
     displayName: z.string().trim().min(1).max(LIMITS.displayName),
