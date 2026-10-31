@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
+import { legalResponse } from "./legal";
 import { requireWorkspace } from "./lib/access";
 import { requireAuth, sameOrigin } from "./lib/auth";
 import type { AppEnv } from "./lib/context";
 import { HttpError } from "./lib/http";
-import { legalResponse } from "./legal";
 import { hub } from "./lib/realtime";
 import { deliverReminders } from "./lib/reminders";
 import { authRoutes, meRoutes } from "./routes/auth";
