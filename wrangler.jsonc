@@ -18,7 +18,7 @@
       "binding": "DB",
       "database_name": "kaiwa-db",
       // Replace with the id printed by `wrangler d1 create kaiwa-db` (see README).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "71a39928-a686-438a-a7ec-db88ac4d9a2f",
       "migrations_dir": "migrations"
     }
   ],

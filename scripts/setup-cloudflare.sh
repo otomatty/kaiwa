@@ -16,7 +16,9 @@ else
   echo "(continuing: the database may already exist)"
 fi
 
-id=$(pnpm exec wrangler d1 info "$DB_NAME" --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(j.uuid??j.database_id??"")})')
+# `d1 info <name>` resolves the name through wrangler.jsonc, so a placeholder
+# database_id makes the lookup miss the database that was just created.
+id=$(pnpm exec wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const row=JSON.parse(s).find(d=>d.name===process.argv[1]);console.log(row?.uuid??"")})' "$DB_NAME")
 if [ -z "$id" ]; then
   echo "Could not read the database id. Run: pnpm exec wrangler d1 list" >&2
   exit 1
